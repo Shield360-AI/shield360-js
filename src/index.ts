@@ -1,5 +1,5 @@
 import { resourceFromAttributes } from '@opentelemetry/resources';
-import { ATTR_SERVICE_NAME, ATTR_TELEMETRY_SDK_NAME } from '@opentelemetry/semantic-conventions';
+import { ATTR_SERVICE_NAME, ATTR_TELEMETRY_SDK_LANGUAGE, ATTR_TELEMETRY_SDK_NAME, ATTR_TELEMETRY_SDK_VERSION, TELEMETRY_SDK_LANGUAGE_VALUE_NODEJS } from '@opentelemetry/semantic-conventions';
 import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
 import { Shield360Options, ResolvedOptions } from './types';
 import Tracing from './otel/tracing';
@@ -298,6 +298,11 @@ class Shield360 extends BaseShield360 {
         [ATTR_SERVICE_NAME]: resolved.applicationName,
         [SemanticConvention.ATTR_DEPLOYMENT_ENVIRONMENT]: resolved.environment,
         [ATTR_TELEMETRY_SDK_NAME]: SDK_NAME,
+        // SHIELD: the resource is built from scratch, so OpenTelemetry's default
+        // language and version never reached it and every app showed no runtime
+        // or SDK version in Shield360 (agents/materialize.ts reads both).
+        [ATTR_TELEMETRY_SDK_LANGUAGE]: TELEMETRY_SDK_LANGUAGE_VALUE_NODEJS,
+        [ATTR_TELEMETRY_SDK_VERSION]: SDK_VERSION,
       });
 
       const setupBase = {

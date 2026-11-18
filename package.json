@@ -19,6 +19,7 @@
     "dist",
     "README.md",
     "LICENSE",
+    "NOTICE",
     "package.json"
   ],
   "description": "OpenTelemetry-native instrumentation and guardrails for LLM applications: tracing, cost attribution, PII and prompt-injection detection.",

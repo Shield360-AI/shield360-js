@@ -231,6 +231,23 @@ describe('Shield360.init resource', () => {
       });
     });
   });
+
+  // SHIELD: Shield360 reads the runtime and SDK version from these; the
+  // resource is built from scratch, so they must be set explicitly.
+  it('names the SDK, its language and its version', () => {
+    process.env = { ...savedEnv, OTEL_TRACES_EXPORTER: 'none' };
+    jest.isolateModules(() => {
+      const Shield360 = require('../index').default;
+      const { SDK_VERSION } = require('../constant');
+      Shield360.init({ disableMetrics: true, disableEvents: true });
+      expect(Shield360.resource.attributes).toMatchObject({
+        'telemetry.sdk.name': 'shield360',
+        'telemetry.sdk.language': 'nodejs',
+        'telemetry.sdk.version': SDK_VERSION,
+      });
+      expect(String(SDK_VERSION)).toMatch(/^\d+\.\d+\.\d+/);
+    });
+  });
 });
 
 describe('SHIELD360_RELEASE', () => {

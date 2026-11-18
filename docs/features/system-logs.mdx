@@ -84,14 +84,42 @@ The agents have minimal permissions:
 
 The `shield360` CLI installs the agent as a system service: a systemd unit on Linux, or a Windows service. On Linux it reads the systemd journal. On Windows it reads the Application and System Event Log channels. It reads files and syslog only if you ask.
 
-1. Put the collector binary at `/usr/local/bin/shield360-otelcol`, or at `C:\Program Files\Shield360\shield360-otelcol.exe` on Windows. You can build it with `make build` in `src/otel-collector`. You can also pass the binary's path with `--collector`.
-2. Enable system logs as root or an administrator. Pass the project API key in the environment or with `--api-key-file`. Don't pass it as an argument.
+### One line
+
+**Setup → Servers and VMs** builds this command for you. On Linux, run it as a user who can use `sudo`:
+
+```bash
+printf 'Shield360 API key: '; stty -echo; read -r SHIELD360_API_KEY; stty echo; echo; export SHIELD360_API_KEY
+curl -fsSL https://app.shield360.ai/api/cli/install-server.sh \
+  | sudo --preserve-env=SHIELD360_API_KEY sh -s -- --host-metrics --file '/var/log/nginx/*.log'
+```
+
+On Windows, in an elevated PowerShell:
+
+```powershell
+$env:SHIELD360_API_KEY = '<project API key>'
+$env:SHIELD360_HOST_METRICS = '1'
+irm https://app.shield360.ai/api/cli/install-server.ps1 | iex
+```
+
+The installer does three things:
+
+1. It installs the `shield360` CLI.
+2. It downloads the collector from your Shield360 server and checks it against the sha256 the server publishes.
+3. It installs the service.
+
+The key is passed in the environment. It never goes on a command line, where other users of the machine could read it. To update the CLI and the collector, run the same line again.
+
+### Step by step
+
+1. Install the `shield360` CLI.
+2. Enable system logs as root or an administrator. Pass the project API key in the environment or with `--api-key-file`. Don't pass it as an argument. The first time you run `enable`, it downloads the collector from your Shield360 server to `/usr/local/bin/shield360-otelcol` (`C:\Program Files\Shield360\shield360-otelcol.exe` on Windows). `--update-collector` downloads it again. To use your own build, pass its path with `--collector`.
 
 <Tabs>
 <Tab title="Linux">
 
 ```bash
-sudo SHIELD360_API_KEY=<project API key> shield360 collector system-logs enable \
+sudo --preserve-env=SHIELD360_API_KEY shield360 collector system-logs enable \
   --url https://app.shield360.ai \
   --file '/var/log/nginx/*.log' --file '/var/log/postgresql/*.log'
 ```

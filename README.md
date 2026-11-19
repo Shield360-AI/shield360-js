@@ -2,7 +2,7 @@
 <h3>OpenTelemetry-native</h3>
 <h1>AI Observability, Monitoring and Evaluation Framework</h1>
 
-**[Shield360](https://shield360.ai) | [Quickstart](#-getting-started-with-llm-observability) | [Report a Bug](https://github.com/ThinkfleetAI/shield360-js/issues/new)**
+**[Shield360](https://shield360.ai) | [Quickstart](#-getting-started-with-llm-observability) | [Report a Bug](https://github.com/Shield360-AI/shield360-js/issues/new)**
 
 [![npm](https://img.shields.io/npm/v/shield360)](https://www.npmjs.com/package/shield360)
 [![Downloads](https://img.shields.io/npm/dw/shield360)](https://www.npmjs.com/package/shield360)
@@ -725,7 +725,7 @@ With `aiSecurity` on, OpenAI, Anthropic, LangChain retrievers and tools, LlamaIn
 
 ## 🌱 Contributing
 
-Whether it's big or small, we love contributions 💚. Check out our [Contribution guide](https://github.com/ThinkfleetAI/shield360-js#readme) to get started
+Whether it's big or small, we love contributions 💚. Check out our [Contribution guide](https://github.com/Shield360-AI/shield360-js#readme) to get started
 
 Unsure where to start? Here are a few ways to get involved:
 
@@ -737,5 +737,5 @@ Your input helps us grow and improve, and we're here to support you every step o
 
 Connect with the Shield360 community and maintainers for support, discussions, and updates:
 
-- 🌟 If you like it, Leave a star on our [GitHub](https://github.com/ThinkfleetAI/shield360-js)
-- 🐞 Report bugs on our [GitHub Issues](https://github.com/ThinkfleetAI/shield360-js/issues) to help us improve Shield360.
+- 🌟 If you like it, Leave a star on our [GitHub](https://github.com/Shield360-AI/shield360-js)
+- 🐞 Report bugs on our [GitHub Issues](https://github.com/Shield360-AI/shield360-js/issues) to help us improve Shield360.

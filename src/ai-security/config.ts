@@ -17,6 +17,9 @@
  * default) and reports it once. Trust on first use (pin the first key seen)
  * exists only behind `allowUnpinnedConfig: true`, for development.
  *
+ * A policy signed earlier than one already applied (its `iat`, beyond 60 s
+ * of clock skew) is refused as a replay of an older policy.
+ *
  * A verified answer can be cached to a file (`cacheFile`) and is re-verified
  * under the pinned keys when read back, so a restart while the platform is
  * unreachable still starts with the last policy. A cached answer never pins
@@ -34,6 +37,8 @@ import { promises as fs } from 'fs';
 
 export const CONFIG_JWS_TYPE = 'shield360-ai-security+jws';
 const MAX_JWS = 256 * 1024;
+/** How much older (seconds) a policy's iat may be than the newest applied before it counts as a rollback. */
+export const ROLLBACK_SKEW_S = 60;
 
 export type SignedPolicy = { app: string; policy: unknown; ver: number; iat: number; exp: number; kid: string };
 
@@ -48,6 +53,8 @@ function parse(token: unknown): Parsed | null {
   try {
     const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
     if (!header || header.alg !== 'EdDSA' || header.typ !== CONFIG_JWS_TYPE || typeof header.kid !== 'string') return null;
+    // Extensions the verifier does not understand must not be ignored (RFC 7515 4.1.11).
+    if (header.crit !== undefined) return null;
     const claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
     if (!claims || typeof claims !== 'object' || Array.isArray(claims)) return null;
     return { kid: header.kid, claims, input: `${parts[0]}.${parts[1]}`, signature: Buffer.from(parts[2], 'base64url') };
@@ -144,6 +151,7 @@ export class ConfigClient {
   private readonly tofu: boolean;
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastVer = -1;
+  private lastIat = 0;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => number;
 
@@ -194,6 +202,12 @@ export class ConfigClient {
       }
     }
     if (!signed || !used) return false;
+    // Rollback: a validly signed policy older than the one already applied
+    // (an attacker on the path re-serving an earlier, weaker policy) is
+    // refused. The platform signs every answer afresh, so iat only moves
+    // forward; ROLLBACK_SKEW_S covers clocks that differ between instances.
+    if (signed.iat + ROLLBACK_SKEW_S < this.lastIat) return false;
+    this.lastIat = Math.max(this.lastIat, signed.iat);
     // Trust on first use (development only): pinned from now on. A cached answer never pins.
     if (pin && !this.keys.length) this.keys = [used];
     if (signed.ver !== this.lastVer) {

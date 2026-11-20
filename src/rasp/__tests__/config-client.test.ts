@@ -51,6 +51,12 @@ function fakeFetch(serve: () => Served) {
 }
 
 describe('verifyConfigJws', () => {
+  // SHIELD: security — extensions the verifier does not understand are never ignored (RFC 7515 4.1.11).
+  it('refuses a validly signed token with a crit header', () => {
+    const keys = parsePublicKeys(jwkOf(k1) as never);
+    expect(verifyConfigJws(jws(k1, claims(), { crit: ['exp'] }), keys, 'orders-api', NOW)).toEqual({ ok: false, reason: 'malformed' });
+  });
+
   const k1 = keyPair('k1');
   const k2 = keyPair('k2');
   const pinned = parsePublicKeys(jwkOf(k1));
@@ -133,6 +139,23 @@ describe('RaspConfigClient', () => {
     });
     return { c, calls: f.calls };
   };
+
+  it('refuses a validly signed config older than the one in force (rollback)', async () => {
+    let served = jws(k1, claims({ iat: NOW, version: 'new', killSwitch: false }));
+    const { c } = client(() => ({ config: served }));
+    expect(await c.poll()).toBe('updated');
+    // A replay of last week's config, still unexpired and validly signed, with the kill switch on.
+    served = jws(k1, claims({ iat: NOW - 6 * 86400, version: 'old', killSwitch: true }));
+    expect(await c.poll()).toBe('rejected');
+    expect(warnings).toContain('rollback');
+    expect(c.current?.version).toBe('new');
+    // Within the clock-skew allowance (another platform instance) it is accepted, and so is a newer one.
+    served = jws(k1, claims({ iat: NOW - 30, version: 'skewed' }));
+    expect(await c.poll()).toBe('updated');
+    served = jws(k1, claims({ iat: NOW + 600, version: 'newer' }));
+    expect(await c.poll()).toBe('updated');
+    expect(c.current?.version).toBe('newer');
+  });
 
   it('pinned: fetches with the API key and applies a verified config', async () => {
     const { c, calls } = client(() => ({ config: jws(k1, claims()), keys: [jwkOf(k1)], etag: '"e1"' }));

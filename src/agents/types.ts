@@ -22,6 +22,8 @@ export const DEFAULT_BASE_URL = 'https://app.shield360.ai';
 
 /** The longest lifetime (exp - iat) a passport may have, in seconds. */
 export const MAX_LIFETIME_SECONDS = 300;
+/** The largest clock skew a verifier accepts; a larger clockSkewSeconds is lowered to it. */
+export const MAX_CLOCK_SKEW_SECONDS = 300;
 
 /** How strongly a passport shows the agent acts for a person, strongest first. */
 export type Assurance = 'delegated' | 'named' | 'unverified';
@@ -164,7 +166,7 @@ export type AgentVerifierOptions = {
   report?: Shield360Connection;
   /** Where passport ids are remembered. Default: in memory, per process. */
   replay?: ReplayStore;
-  /** Allowed clock difference with the issuer, seconds. Default 60. */
+  /** Allowed clock difference with the issuer, seconds. Default 60, at most 300 (MAX_CLOCK_SKEW_SECONDS). */
   clockSkewSeconds?: number;
   /**
    * What a failed online check (issuer unreachable) means. Default "allow":

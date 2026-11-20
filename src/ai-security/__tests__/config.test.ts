@@ -60,6 +60,21 @@ describe('signed config', () => {
     return { c, got, fetched };
   };
 
+  it('refuses a validly signed policy older than one already applied (rollback)', async () => {
+    const { c, got } = client(
+      [
+        { jws: token(k.privateKey, claims({ ver: 5, iat: NOW / 1000 })) },
+        { jws: token(k.privateKey, claims({ ver: 2, iat: NOW / 1000 - 3000, policy: { output: { mode: 'off' } } })) },
+        { jws: token(k.privateKey, claims({ ver: 6, iat: NOW / 1000 + 60 })) },
+      ],
+      { publicKey: k.jwk },
+    );
+    expect(await c.refresh()).toBe(true);
+    expect(await c.refresh()).toBe(false);
+    expect(await c.refresh()).toBe(true);
+    expect(got).toEqual([5, 6]);
+  });
+
   it('refuses everything without a pinned key, even a validly signed answer, and never fetches', async () => {
     const saved = process.env.SHIELD360_CONFIG_PUBLIC_KEY;
     delete process.env.SHIELD360_CONFIG_PUBLIC_KEY;

@@ -27,6 +27,7 @@ import {
   Assurance,
   assuranceRank,
   DEFAULT_ISSUERS,
+  MAX_CLOCK_SKEW_SECONDS,
   MAX_LIFETIME_SECONDS,
   ReplayStore,
 } from './types';
@@ -100,11 +101,19 @@ export function agentVerifier(options: AgentVerifierOptions): AgentVerifier {
   const audiences = (Array.isArray(options.audience) ? options.audience : [options.audience]).filter((a) => typeof a === 'string' && a.trim());
   if (!audiences.length) throw new TypeError('agentVerifier: an audience (the receiver host or origin) is required');
   const issuers = new Set((options.issuers?.length ? options.issuers : DEFAULT_ISSUERS).map(normaliseIssuer));
-  const skew = Math.max(0, options.clockSkewSeconds ?? 60);
+  // Bounded: a skew of hours would stretch every passport's five-minute life
+  // and the replay window with it.
+  const askedSkew = options.clockSkewSeconds ?? 60;
+  const skew = Number.isFinite(askedSkew) ? Math.min(MAX_CLOCK_SKEW_SECONDS, Math.max(0, askedSkew)) : 60;
   const now = options.clock ?? Date.now;
   const getFetch = (): typeof fetch => options.fetch ?? globalThis.fetch;
   const keys = new KeyCache(getFetch, now);
   const replay: ReplayStore = options.replay ?? new MemoryReplayStore({ clock: now });
+  // Web Bot Auth signers are any host with a key directory, so anyone can mint
+  // valid signatures. In the default in-memory store they get their own
+  // store: a flood of them can never push out (and so re-open) the passport
+  // ids remembered beside them.
+  const signatureReplay: ReplayStore = options.replay ?? new MemoryReplayStore({ clock: now });
   const policies = new PolicySource(options.policy, options.policyFrom, getFetch, now);
   const reporter = options.report?.apiKey ? new DecisionReporter(options.report, getFetch) : undefined;
   const onlineFailure = options.onlineFailure ?? 'allow';
@@ -254,7 +263,7 @@ export function agentVerifier(options: AgentVerifierOptions): AgentVerifier {
     finish: (r: Omit<AgentCheck, 'blocked'>) => AgentCheck,
     absent: (reason: string) => AgentCheck,
   ): Promise<AgentCheck> {
-    const r = await verifyWebBotAuth(signedRequest(input, opts), { audiences, directories, replay, skewSeconds: skew, now });
+    const r = await verifyWebBotAuth(signedRequest(input, opts), { audiences, directories, replay: signatureReplay, skewSeconds: skew, now });
     if (r.status === 'absent') return absent('absent');
     if (r.status === 'invalid') {
       if (r.reason === 'directory_unreachable') return absent('directory_unreachable');

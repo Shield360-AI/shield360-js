@@ -11,6 +11,9 @@
  * seen pinned; a config signed by another kid after that is rejected. A
  * pinned key that does not verify never falls back to trust on first use.
  *
+ * A config signed earlier than the one in force (its `iat`, beyond 60 s of
+ * clock skew) is refused as a replay.
+ *
  * ETag polling every 60 s ± 10 s, 5 minutes after a failure; the last
  * verified config is kept in memory and in a cache file that is re-verified
  * when loaded. Never throws and never blocks start-up.
@@ -104,7 +107,7 @@ export function parsePublicKeys(input: ConfigPublicKey | undefined | null): Pinn
 
 export type VerifyResult = { ok: true; claims: RaspClaims; kid?: string } | { ok: false; reason: string };
 
-function header(token: string): { alg?: unknown; typ?: unknown; kid?: unknown } | null {
+function header(token: string): { alg?: unknown; typ?: unknown; kid?: unknown; crit?: unknown } | null {
   try {
     const h = JSON.parse(b64url(token.split('.')[0] || '').toString('utf8'));
     return h && typeof h === 'object' ? h : null;
@@ -134,6 +137,8 @@ export function verifyConfigJws(token: unknown, keys: PinnedKey[], app: string, 
     if (!h) return { ok: false, reason: 'malformed' };
     if (h.alg !== 'EdDSA') return { ok: false, reason: 'alg' };
     if (h.typ !== JWS_TYPE) return { ok: false, reason: 'typ' };
+    // Extensions the verifier does not understand must not be ignored (RFC 7515 4.1.11).
+    if (h.crit !== undefined) return { ok: false, reason: 'malformed' };
     const kid = typeof h.kid === 'string' ? h.kid : undefined;
     let candidates = kid ? keys.filter((k) => k.kid === kid) : [];
     if (!candidates.length) candidates = keys;
@@ -150,6 +155,13 @@ export function verifyConfigJws(token: unknown, keys: PinnedKey[], app: string, 
   } catch {
     return { ok: false, reason: 'malformed' };
   }
+}
+
+/** Whether `next` was signed before the config in force (beyond the clock skew allowance). */
+export function isRollback(next: Pick<RaspClaims, 'iat'>, current: Pick<RaspClaims, 'iat'> | undefined): boolean {
+  if (!current || typeof current.iat !== 'number') return false;
+  if (typeof next.iat !== 'number') return true;
+  return next.iat + SKEW_S < current.iat;
 }
 
 export type PollResult = 'updated' | 'unchanged' | 'rejected' | 'failed';
@@ -296,6 +308,15 @@ export class RaspConfigClient {
       const r = verifyConfigJws(token, this.trusted(), this.o.app, this.nowMs() / 1000);
       if (!r.ok) {
         this.warn(r.reason);
+        return 'rejected';
+      }
+      // A validly signed config older than the one in force is a replay (an
+      // attacker on the path re-serving last week's config, kill switch and
+      // all): refused. Every config the platform serves is freshly signed, so
+      // its iat only moves forward; SKEW_S covers clocks that differ between
+      // platform instances.
+      if (isRollback(r.claims, this.current)) {
+        this.warn('rollback');
         return 'rejected';
       }
       this.etag = res.headers.get('etag') ?? undefined;

@@ -14,6 +14,8 @@ import Instrumentations from '../instrumentation';
 import Shield360Config from '../config';
 import { parseExporters } from './utils';
 import { CodeLocationSpanProcessor } from './code-location';
+// SHIELD: credential query values never reach a span (query-redaction.ts).
+import { QueryRedactionSpanProcessor } from './query-redaction';
 // Cost per end customer: stamps the customer in effect on every span.
 import { CustomerSpanProcessor } from '../customer';
 
@@ -36,6 +38,7 @@ export default class Tracing {
         if (isSDKProvider) {
           // Reuse existing SDK TracerProvider
           this.traceProvider = existingProvider as unknown as NodeTracerProvider;
+          (existingProvider as any).addSpanProcessor(new QueryRedactionSpanProcessor());
           (existingProvider as any).addSpanProcessor(new CustomerSpanProcessor());
           if (options.captureCodeLocation) {
             (existingProvider as any).addSpanProcessor(
@@ -76,7 +79,8 @@ export default class Tracing {
 
   private static buildSpanProcessors(options: SetupTracerOptions) {
     // The customer processor goes first so every exporter sees its attributes.
-    const processors: SpanProcessor[] = [new CustomerSpanProcessor()];
+    // Query redaction runs before any exporter, so none sees a credential in a URL.
+    const processors: SpanProcessor[] = [new CustomerSpanProcessor(), new QueryRedactionSpanProcessor()];
     if (options.captureCodeLocation) {
       processors.push(new CodeLocationSpanProcessor({ codeRoot: options.codeRoot }));
     }

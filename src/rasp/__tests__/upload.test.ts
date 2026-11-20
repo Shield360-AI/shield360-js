@@ -76,7 +76,7 @@ describe('captured uploads', () => {
   });
 
   it('lets an ordinary upload through without a report', () => {
-    captureBody(ctx(), multipart([{ name: 'attachment', filename: 'report.pdf', body: 'fixture' }]));
+    captureBody(ctx(), multipart([{ name: 'attachment', filename: 'report.pdf', body: '%PDF-1.4 fixture' }]));
     expect(events).toHaveLength(0);
   });
 

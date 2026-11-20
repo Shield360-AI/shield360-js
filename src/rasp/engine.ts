@@ -173,6 +173,18 @@ export function applicationName(): string {
   return state.applicationName;
 }
 
+/**
+ * A mode a route's upload policy or the deep scan chose instead of the attack
+ * type's (README "Upload policy and deep scan"): capped by the kill switch, a
+ * local `off` for the attack type and no pinned key, like attack modes.
+ */
+export function overriddenMode(attack: AttackType, m: RaspMode): RaspMode {
+  if (!isActive() || state.local.attacks[attack] === 'off') return 'off';
+  return m === 'block' && state.monitorOnly ? 'monitor' : m;
+}
+
+const findingMode = (f: Finding): RaspMode => (f.mode ? overriddenMode(f.attack, f.mode) : modeFor(f.attack));
+
 /** The effective mode of an attack type: off when RASP is not active. */
 export function modeFor(attack: AttackType): RaspMode {
   if (!isActive()) return 'off';
@@ -224,6 +236,21 @@ export function reportDeception(rule: string, block: boolean, extra: FindingExtr
   return eventId;
 }
 
+/**
+ * Queues a record that is not an attack event (README "Scanner status"),
+ * with the app and language added; an empty fold key never folds. Never throws.
+ */
+export function reportRecord(name: string, attrs: Record<string, string>): void {
+  try {
+    state.sink?.add({ name, time: new Date().toISOString(), attrs: { 'shield360.rasp.app': state.applicationName, 'shield360.rasp.language': 'node', ...attrs } }, '');
+  } catch {
+    // reporting never breaks the call
+  }
+}
+
+/** Whether a reporter is attached (the deep scan's reputation lookups need one). */
+export const hasEventSink = (): boolean => Boolean(state.sink);
+
 /** A snippet: masked (sdk/rasp/README.md, Masking), at most 64 characters. */
 export function maskSnippet(v: string): string {
   return maskText(v, 64);
@@ -245,6 +272,26 @@ const safeMethod = (m: string | undefined) => (m && /^[A-Za-z]{3,10}$/.test(m) ?
 
 export type Decision = 'blocked' | 'monitored';
 export type FindingExtra = { framework?: string; route?: string; method?: string; path?: string; tightenedByEdge?: boolean };
+
+const UPLOAD_TYPE = /^[a-z0-9_]{1,16}$/;
+const UPLOAD_SIGNATURE = /^[A-Za-z0-9._:/-]{1,128}$/;
+
+/** README "Upload event attributes": each only when it has the contract's shape. */
+function uploadAttrs(attrs: Record<string, string>, u: NonNullable<Finding['upload']>): void {
+  const p = 'shield360.rasp.upload.';
+  if (u.type && UPLOAD_TYPE.test(u.type)) attrs[`${p}type`] = u.type;
+  if (u.kind && UPLOAD_TYPE.test(u.kind)) attrs[`${p}kind`] = u.kind;
+  if (u.ext && /^[a-z0-9]{1,10}$/.test(u.ext)) attrs[`${p}ext`] = u.ext;
+  if (typeof u.size === 'number' && Number.isSafeInteger(u.size) && u.size >= 0) attrs[`${p}size`] = String(u.size);
+  if (u.sha256 && /^[0-9a-f]{64}$/.test(u.sha256)) attrs[`${p}sha256`] = u.sha256;
+  if (u.signature && UPLOAD_SIGNATURE.test(u.signature)) attrs[`${p}signature`] = u.signature;
+  if (u.engine && /^(builtin|custom|clamav|reputation|policy)$/.test(u.engine)) attrs[`${p}engine`] = u.engine;
+  if (u.dest) {
+    const d = maskTarget(u.dest);
+    if (d) attrs[`${p}dest`] = d;
+  }
+  if (u.action === 'quarantined') attrs[`${p}action`] = 'quarantined';
+}
 
 /** Builds and queues the event for a finding. Never throws: reporting never breaks the call. */
 function emit(f: Finding, sink: string, extra: FindingExtra, decision: Decision, mode: RaspMode, eventId: string): void {
@@ -278,6 +325,7 @@ function emit(f: Finding, sink: string, extra: FindingExtra, decision: Decision,
     if (state.remote?.snippets && f.input) attrs['shield360.rasp.snippet'] = maskSnippet(f.input.value);
     if (state.remote?.reportTargets && TARGET_RULES.has(f.rule)) opt('shield360.rasp.target', maskTarget(f.target));
     if (f.attack === 'sql_injection' && f.dialect && SQL_DIALECT_NAMES.has(f.dialect)) attrs['shield360.rasp.sql.dialect'] = f.dialect;
+    if (f.upload && (f.attack === 'malicious_upload' || f.attack === 'upload_backdoor')) uploadAttrs(attrs, f.upload);
     state.sink?.add({ name: 'shield360.rasp.event', time: new Date().toISOString(), attrs }, [f.attack, f.rule, sink, route, decision].join('\u0000'));
   } catch {
     // reporting never breaks the call
@@ -289,7 +337,7 @@ function emit(f: Finding, sink: string, extra: FindingExtra, decision: Decision,
  * the block error. Returns the decision, or null when the attack type is off.
  */
 export function handleFinding(f: Finding, sink: string, extra: FindingExtra = {}): Decision | null {
-  let mode = modeFor(f.attack);
+  let mode = findingMode(f);
   // A rule's own action (virtual patches, sink rules) caps the mode.
   if (f.action && RANK[f.action] < RANK[mode]) mode = f.action;
   if (mode === 'off') return null;
@@ -307,6 +355,13 @@ export function handleFinding(f: Finding, sink: string, extra: FindingExtra = {}
   if (decision === 'blocked') throw new RaspBlockedError(f.attack, f.rule, eventId);
   if (custom) throw custom;
   return decision;
+}
+
+/** Whether a finding would be blocked now (its mode, its rule's cap, never-blocking types), without reporting it. */
+export function wouldBlock(f: Finding): boolean {
+  let mode = findingMode(f);
+  if (f.action && RANK[f.action] < RANK[mode]) mode = f.action;
+  return mode === 'block' && !MONITOR_ONLY.has(f.attack);
 }
 
 /** SHIELD: protection triangle — attacks Edge's view of the client may tighten from monitor to block. */
@@ -367,7 +422,7 @@ export function strongest(...findings: (Finding | null | undefined)[]): Finding 
   let bestRank = 0;
   for (const f of findings) {
     if (!f) continue;
-    let mode = modeFor(f.attack);
+    let mode = findingMode(f);
     if (f.action && RANK[f.action] < RANK[mode]) mode = f.action;
     if (RANK[mode] > bestRank) {
       best = f;

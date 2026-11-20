@@ -60,6 +60,8 @@ export type RaspClaims = {
   /** Passive IAST switch and sampling rate (README "Passive IAST"). */
   iast?: 'on' | 'off';
   iastSampleRate?: number;
+  /** SHIELD: uploads — the upload policy and deep scan settings (upload-policy.ts reads them); absent or null = the local options. */
+  uploads?: unknown;
   /** SHIELD: protection triangle — { keys: [{ kid, key }] } for Edge's context header and verdicts (edge-context.ts). */
   edgeContext?: unknown;
 };

@@ -41,6 +41,10 @@ export type RaspContext = {
   /** SHIELD: protection triangle — sets a response header while the headers are not sent (the verdict for Edge). */
   setHeader?: (name: string, value: string) => void;
   verdictSent?: boolean;
+  /** SHIELD: uploads — the files this request carries, inspected (upload.ts); never their content. */
+  uploads?: import('./upload-taint').RequestUpload[];
+  /** SHIELD: uploads — the request is multipart/form-data (the fs hook inspects the streams it writes). */
+  multipart?: boolean;
 };
 
 export const storage = new AsyncLocalStorage<RaspContext>();

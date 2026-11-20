@@ -1106,6 +1106,20 @@ export function isSafeRegex(pattern: string): boolean {
 	return compileRegex(pattern) !== null;
 }
 
+/**
+ * SHIELD: upload signatures — runs a compiled pattern (compileRegex) on a
+ * whole subject (sdk/rasp/README.md "Signatures": bytes read as Latin-1 code
+ * points). False when it does not match or once the budget is spent (the
+ * caller reads `budget.steps < 0`). Never throws.
+ */
+export function regexMatches(prog: Inst[], subject: string, budget: RuleBudget): boolean {
+	try {
+		return runRegex(prog, codePoints(subject, Infinity), budget);
+	} catch {
+		return false;
+	}
+}
+
 function classHas(r: number[], c: number): boolean {
 	for (let k = 0; k < r.length; k += 2) if (c >= r[k] && c <= r[k + 1]) return true;
 	return false;

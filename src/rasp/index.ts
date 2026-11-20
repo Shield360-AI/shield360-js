@@ -44,6 +44,9 @@ import { configureIast, setIastRemote, setIastSink } from './iast';
 import { collectComponents, RaspReporter } from './reporter';
 import { runtimePackagesActive } from '../runtime-packages';
 import type { RaspOptions } from './types';
+// SHIELD: uploads — inspection, deep scan and backdoor checks (README "Uploads").
+import { configureUploads, setRemoteUploads, uploadConfig } from './upload-policy';
+import { runConnectionTest, setReputationClient } from './upload-deep';
 
 const COMPONENTS_EVERY_MS = 24 * 60 * 60 * 1000;
 
@@ -176,6 +179,8 @@ export function initRasp(option: boolean | RaspOptions | undefined, ctx: RaspIni
       env,
     });
     configureIast({ option: o.iast, applicationName: ctx.applicationName, environment: ctx.environment, env });
+    configureUploads(o.uploads);
+    setReputationClient(ctx.url && ctx.apiKey ? { url: ctx.url, apiKey: ctx.apiKey, fetchImpl: ctx.fetchImpl } : null);
     if (!o.enabled) return false;
     installProcessHooks();
     installFsHooks();
@@ -234,6 +239,8 @@ export function initRasp(option: boolean | RaspOptions | undefined, ctx: RaspIni
         onConfig: (claims) => {
           const remote = claims ? toRemote(claims) : undefined;
           setRemoteConfig(remote);
+          setRemoteUploads(claims?.uploads);
+          void runConnectionTest(uploadConfig().deepScan).catch(() => undefined);
           setIastRemote(claims ? { iast: claims.iast, iastSampleRate: claims.iastSampleRate, version: claims.version } : undefined);
           // The platform's sink rules replace the built-in list when present.
           setSinkRules(remote?.sinks ? parseSinkRules(remote.sinks) : BUILT_IN_SINKS);
@@ -278,5 +285,8 @@ export { runInRaspScope, currentContext as currentRaspContext, inputsOf } from '
 export { check as raspCheck } from './engine';
 // SHIELD: protection triangle — Edge's context header and the app's verdict (edge-context.ts).
 export { verifyEdgeContext, signVerdict, verifyVerdict, parseEdgeKeys, pathHash as edgePathHash, CONTEXT_HEADER as EDGE_CONTEXT_HEADER, VERDICT_HEADER as EDGE_VERDICT_HEADER } from './edge-context';
+export { inspectUpload, uploadGuard } from './upload';
+export type { UploadVerdict, UploadFinding, UploadKind } from './upload-inspect';
+export type { UploadOptions } from './upload-policy';
 export { compileRuleExpr, evaluateRuleExpr, RULE_EXPR_LIMITS, RULE_FIELDS } from './rule-expr';
 export type { RuleSubject, RuleExprErrorCode } from './rule-expr';

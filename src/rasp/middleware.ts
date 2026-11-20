@@ -13,6 +13,7 @@ import { currentContext, storage, type RaspContext } from './context';
 import { checkDeception, type DeceptionOutcome, type DeceptionRequest } from './deception';
 import { isActive } from './engine';
 import { blockBody, RaspBlockedError } from './types';
+import { inspectFormData } from './upload';
 
 export function isRaspBlocked(e: unknown): e is RaspBlockedError {
   return e instanceof RaspBlockedError;
@@ -518,6 +519,17 @@ export function recordRequestBody(body: unknown, contentType?: string): void {
 
 // ---- Next.js route handlers ------------------------------------------------------
 
+/** SHIELD: uploads — reads the form from a clone and inspects its files. Throws the block error only. */
+async function inspectRequestForm(ctx: RaspContext, request: Request): Promise<void> {
+  let form: FormData;
+  try {
+    form = await request.clone().formData();
+  } catch {
+    return;
+  }
+  await inspectFormData(ctx, form);
+}
+
 const MAX_READ = 1024 * 1024;
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -586,6 +598,8 @@ export function withRasp<C = unknown>(handler: RouteHandler<C>): RouteHandler<C>
         const text = await readCapped(request.clone(), MAX_READ);
         if (text !== undefined) captureBody(ctx, { body: text, contentType: headers['content-type'] });
         runVirtualPatches(ctx);
+        // SHIELD: uploads — the form's files, inspected and (sync deep scan) held before the handler runs.
+        if ((headers['content-type'] || '').toLowerCase().includes('multipart/form-data')) await inspectRequestForm(ctx, request);
       }
     } catch (e) {
       if (e instanceof RaspBlockedError) return blockedResponse(e);

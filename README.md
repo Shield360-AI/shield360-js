@@ -658,6 +658,14 @@ Custom request rules run in a head phase and a body phase (see "When rules run" 
 
 Options (`rasp: { ... }`): `mode` (`monitor` by default, or `block`, `off`), `attacks` (a mode per attack type), `allow` (`commands`, `outboundHosts`, `fileRoots`), `modelOutput` (default `true`), `remote` (default `true`), `configPublicKey`, `allowUnpinnedConfig`, `cacheDir`, `components` (default `true`). `Shield360.disableRasp()` is the runtime kill switch.
 
+### Upload protection
+
+With RASP on, uploaded files are inspected from their bytes (real type by magic bytes, web-shell signatures, executables, server scripts, HTML or SVG with script, polyglots, double extensions, `.htaccess`-style config files, zip-slip, links, archive bombs, encrypted archives, Office macros, EICAR) and remembered where the app saves them. Saving an uploaded file under an executable name or, when it is active content, into a served directory, requiring it, running it, or making it executable is `upload_backdoor`, the decisive check. Events carry the verdict, the real type, the size, the SHA-256 and the matched rule, never the file name or its content.
+
+Seen automatically: multer (`req.file`/`req.files`), formidable file objects, raw multipart bodies, any stream the app writes during a multipart request (busboy, multer's disk storage), and `withRasp` (the request's form data). For a synchronous deep scan in Express, add `uploadGuard()` after the upload parser: `app.post('/avatar', upload.single('f'), uploadGuard(), handler)`. `await inspectUpload(bufferOrPath, { name, contentType })` inspects anything else and rejects with the block error when the file must be refused.
+
+The per-route upload policy and the deep scan (your own ClamAV, a hash reputation lookup where only the hash leaves the app, your own signatures) are set in Shield360 and reach the app in the signed config. Local options: `rasp: { uploads: { servedDirs, maxBytes, allow, scanBytes, quarantineDir, deepScan: { mode, scan, timeoutMs, failMode, clamav: 'unix:/var/run/clamav/clamd.ctl' } } }`. See "Uploads" in [`sdk/rasp/README.md`](../rasp/README.md).
+
 ### Pin the config key
 
 With a Shield360 URL and API key, the SDK polls the app's signed settings (`GET /api/rasp/config`). It trusts them only when they verify against the key you pin. Copy the environment's public key from the app's **Runtime protection** settings in Shield360 into `configPublicKey` or `SHIELD360_CONFIG_PUBLIC_KEY`, as a JWK, a JWKS (`{"keys":[...]}`, so a key rotation can list the old and new key), or the bare base64url `x`.

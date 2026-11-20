@@ -12,9 +12,11 @@
  * where RASP's wrapper is still on top.
  */
 import Module = require('module');
+import { isAbsolute } from 'path';
 import { currentContext, inputsOf } from '../context';
 import { detectInclude } from '../detect';
-import { check, isActive } from '../engine';
+import { check, isActive, strongest } from '../engine';
+import { detectUploadInclude, locationCount } from '../upload-taint';
 
 type Require = (this: unknown, id: string) => unknown;
 type Target = { require: Require };
@@ -26,15 +28,28 @@ let installed: Saved | undefined;
 let generation = 0;
 let checking = false;
 
-function inspect(id: unknown): void {
+function inspect(id: unknown, parent: unknown): void {
   if (checking || typeof id !== 'string' || !isActive()) return;
   const ctx = currentContext();
-  if (!ctx?.inRequest) return;
   checking = true;
   try {
-    check('module.require', () => detectInclude(id, inputsOf(ctx)));
+    // SHIELD: uploads — loading an uploaded file as code (`backdoor.include`), in a request or not.
+    const backdoor = locationCount() ? detectUploadInclude(resolved(id, parent)) : null;
+    if (!ctx?.inRequest && !backdoor) return;
+    check('module.require', () => strongest(backdoor, ctx?.inRequest ? detectInclude(id, inputsOf(ctx)) : null));
   } finally {
     checking = false;
+  }
+}
+
+/** The file a specifier loads, by Node's own resolution; undefined when it cannot be resolved (Node then throws as before). */
+function resolved(id: string, parent: unknown): string | undefined {
+  try {
+    const r = (Module as unknown as { _resolveFilename?: (id: string, parent: unknown) => string })._resolveFilename;
+    return typeof r === 'function' ? r(id, parent) : isAbsolute(id) ? id : undefined;
+  } catch {
+    // Not resolvable (a file not there yet, a stand-in loader): an absolute path is still the file it names.
+    return isAbsolute(id) ? id : undefined;
   }
 }
 
@@ -47,7 +62,7 @@ export function installIncludeHooks(target: Target = proto): boolean {
     const original = descriptor.value as Require;
     const gen = ++generation;
     const wrapper = function (this: unknown, id: string): unknown {
-      if (gen === generation) inspect(id);
+      if (gen === generation) inspect(id, this);
       return Reflect.apply(original, this, [id]);
     } as Require;
     for (const key of Reflect.ownKeys(original)) {

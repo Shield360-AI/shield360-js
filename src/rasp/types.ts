@@ -18,7 +18,9 @@ export type AttackType =
   | 'virtual_patch'
   | 'baseline'
   | 'custom_rule'
-  | 'deception';
+  | 'deception'
+  | 'malicious_upload'
+  | 'upload_backdoor';
 
 export const ATTACK_TYPES: readonly AttackType[] = [
   'sql_injection',
@@ -37,6 +39,8 @@ export const ATTACK_TYPES: readonly AttackType[] = [
   'baseline',
   'custom_rule',
   'deception',
+  'malicious_upload',
+  'upload_backdoor',
 ];
 
 /** Attack types that only ever report: `block` is treated as `monitor` (README "Attack types and modes"). */
@@ -60,6 +64,24 @@ export type Finding = {
   target?: string;
   /** SQL findings: the dialect the lexer used. */
   dialect?: string;
+  /** Upload findings: the mode that decides instead of the attack type's (a route's policy, the deep scan), capped like attack modes. */
+  mode?: RaspMode;
+  /** Upload findings: what the event says about the file (README "Upload event attributes"); never content or a file name. */
+  upload?: UploadAttrs;
+};
+
+/** README "Upload event attributes". */
+export type UploadAttrs = {
+  type?: string;
+  kind?: string;
+  ext?: string;
+  size?: number;
+  sha256?: string;
+  signature?: string;
+  engine?: string;
+  /** Backdoor rules: the raw directory of the location (masked before it is sent). */
+  dest?: string;
+  action?: 'quarantined';
 };
 
 export type RaspAllow = { commands: string[]; outboundHosts: string[]; fileRoots: string[] };
@@ -108,6 +130,8 @@ export type RaspOptions = {
    * `sampleRate` (0 to 1) defaults to 1.0, or 0.1 in production.
    */
   iast?: boolean | { enabled?: boolean; sampleRate?: number };
+  /** Upload inspection and deep scan (README "Uploads"): used without a signed config; `scanBytes` and `quarantineDir` always. */
+  uploads?: import('./upload-policy').UploadOptions;
 };
 
 export const BLOCK_MESSAGE = 'Request blocked by Shield360 runtime protection';

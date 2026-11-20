@@ -10,6 +10,8 @@ import { customFinding, matchRequestRules, requestSubject } from './custom-rules
 import { applicationName, check, customRules, handleFinding, modeFor, remoteConfig, virtualPatches } from './engine';
 import { addInput, flatten, MAX_RAW_BODY, parseCookies } from './normalize';
 import { RaspBlockedError } from './types';
+// SHIELD: uploads — the bytes of uploaded files are inspected where capture sees them (upload.ts).
+import { fileObjects, inspectFileObject, inspectMultipartBody } from './upload';
 import { MAX_VP_TEXT, matchVirtualPatches, type VpRequest } from './vpatch';
 
 /** Headers the contract treats as input (OpenRASP's headerInjection). */
@@ -122,6 +124,8 @@ export function captureRequest(shape: RequestShape): RaspContext {
   const { path, query } = splitUrl(shape.url || '/');
   const ctx = newContext({ inRequest: true, method: shape.method, path, route: shape.route, framework: shape.framework });
   if (typeof shape.ip === 'string' && shape.ip) ctx.ip = shape.ip;
+  // SHIELD: uploads — a multipart request: the fs hook inspects the streams it writes.
+  if (header(shape.headers, 'content-type').toLowerCase().includes('multipart/form-data')) ctx.multipart = true;
   const inputs = ctx.inputs;
   if (shape.query && typeof shape.query === 'object') {
     flatten(inputs, shape.query, 'query');
@@ -229,6 +233,23 @@ export function captureBody(ctx: RaspContext, b: BodyShape): void {
     ctx.vp.bodyKnown = true;
   }
   captureUploads(ctx, b, raw);
+  captureUploadContent(ctx, b);
+}
+
+/** SHIELD: uploads — inspects the files' bytes (parser file objects, a raw multipart body). Throws the block error. */
+function captureUploadContent(ctx: RaspContext, b: BodyShape): void {
+  try {
+    const ct = (b.contentType || '').toLowerCase();
+    inContext(ctx, () => {
+      for (const [field, o] of fileObjects(b.files)) inspectFileObject(ctx, field, o);
+      const body = b.body;
+      if (ct.includes('multipart/form-data') && (typeof body === 'string' || body instanceof Uint8Array)) {
+        inspectMultipartBody(ctx, typeof body === 'string' ? Buffer.from(body, 'utf8') : body, b.contentType || '');
+      }
+    });
+  } catch (e) {
+    if (e instanceof RaspBlockedError) throw e;
+  }
 }
 
 /**

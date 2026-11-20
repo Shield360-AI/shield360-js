@@ -24,6 +24,7 @@ import { currentContext, inputsOf } from '../context';
 import { detectArgv, detectCommand, detectShellSpawn, shellScriptOf } from '../detect';
 import { allowLists, check, isActive, strongest } from '../engine';
 import type { Finding, RaspInput } from '../types';
+import { commandWords, detectUploadExec } from '../upload-taint';
 
 export type ProcessApi = 'exec' | 'execSync' | 'spawn' | 'spawnSync' | 'execFile' | 'execFileSync' | 'fork';
 
@@ -96,8 +97,10 @@ function inspect(api: ProcessApi, values: unknown[]): void {
       const target = processTarget(api, values);
       if (!target) return null;
       const ctx = currentContext();
+      // SHIELD: uploads — running an uploaded file (`backdoor.exec`), in a request or not.
+      const backdoor = detectUploadExec('command' in target ? commandWords(target.command) : target.argv);
       // The strongest decision wins: a finding in monitor or off mode never hides one that blocks.
-      return strongest(...processFindings(target, ctx ? inputsOf(ctx) : [], Boolean(ctx?.inRequest), allowLists().commands));
+      return strongest(...processFindings(target, ctx ? inputsOf(ctx) : [], Boolean(ctx?.inRequest), allowLists().commands), backdoor);
     });
   } finally {
     checking = false;

@@ -1,0 +1,657 @@
+{
+ "version": 1,
+ "comment": "Upload inspection conformance (sdk/rasp/README.md \"Uploads\"). types: the first bytes (hex) and the real type. names: a file name and the name rules it raises (upload.double_extension, upload.server_config). mismatch: upload.type_mismatch for a real type and a name or declared type. signatures: a rule, a sample (text, UTF-8) and whether it matches; in t.across the sample is 1 MiB of padding, the marker, and padding again, placed so it spans the first two pieces (each SDK builds it: 1048570 bytes of 'x', then MARKERTEXT, then 100 bytes of 'x'). invalid: a rule the format refuses, and the error code.",
+ "types": [
+  {
+   "hex": "7f454c4602010100",
+   "type": "elf"
+  },
+  {
+   "hex": "4d5a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000005045000000000000000000000000000000000000",
+   "type": "pe"
+  },
+  {
+   "hex": "4d5a207468697320697320746578742074686174207374617274732077697468204d5a",
+   "type": "text"
+  },
+  {
+   "hex": "cffaedfe07000001",
+   "type": "macho"
+  },
+  {
+   "hex": "cafebabe00000002",
+   "type": "macho"
+  },
+  {
+   "hex": "cafebabe00000034",
+   "type": "java_class"
+  },
+  {
+   "hex": "ffd8ffe000104a464946",
+   "type": "jpeg"
+  },
+  {
+   "hex": "89504e470d0a1a0a0000000d49484452",
+   "type": "png"
+  },
+  {
+   "hex": "47494638396101000100",
+   "type": "gif"
+  },
+  {
+   "hex": "52494646240000005745425056503820",
+   "type": "webp"
+  },
+  {
+   "hex": "255044462d312e370a25e2e3cfd30a",
+   "type": "pdf"
+  },
+  {
+   "hex": "d0cf11e0a1b11ae10000",
+   "type": "ole2"
+  },
+  {
+   "hex": "504b030414000000",
+   "type": "zip"
+  },
+  {
+   "hex": "1f8b0800",
+   "type": "gzip"
+  },
+  {
+   "hex": "377abcaf271c0004",
+   "type": "7z"
+  },
+  {
+   "hex": "526172211a070100",
+   "type": "rar"
+  },
+  {
+   "hex": "00000018667479706d703432",
+   "type": "mp4"
+  },
+  {
+   "hex": "0061736d01000000",
+   "type": "wasm"
+  },
+  {
+   "hex": "efbbbf20203c3f706870206563686f20313b203f3e",
+   "type": "php"
+  },
+  {
+   "hex": "3c3f3d202478203f3e",
+   "type": "php"
+  },
+  {
+   "hex": "3c2540207061676520696d706f72743d226a6176612e696f2e2a2220253e",
+   "type": "jsp_asp"
+  },
+  {
+   "hex": "23212f62696e2f73680a6563686f2068690a",
+   "type": "shebang"
+  },
+  {
+   "hex": "3c3f786d6c2076657273696f6e3d22312e30223f3e0a3c73766720786d6c6e733d22687474703a2f2f7777772e77332e6f72672f323030302f737667223e3c2f7376673e",
+   "type": "svg"
+  },
+  {
+   "hex": "3c21444f43545950452068746d6c3e3c68746d6c3e3c626f64793e68693c2f626f64793e3c2f68746d6c3e",
+   "type": "html"
+  },
+  {
+   "hex": "6e616d652c616d6f756e740a616c6963652c330a",
+   "type": "text"
+  },
+  {
+   "hex": "000102030462696e617279",
+   "type": "unknown"
+  }
+ ],
+ "names": [
+  {
+   "name": "shell.php.jpg",
+   "rules": [
+    "upload.double_extension"
+   ]
+  },
+  {
+   "name": "shell.PHP5.png",
+   "rules": [
+    "upload.double_extension"
+   ]
+  },
+  {
+   "name": "shell.asp;.jpg",
+   "rules": [
+    "upload.double_extension"
+   ]
+  },
+  {
+   "name": "shell.php.",
+   "rules": [
+    "upload.double_extension"
+   ]
+  },
+  {
+   "name": "photo.jpg ",
+   "rules": [
+    "upload.double_extension"
+   ]
+  },
+  {
+   "name": "shell.php%00.jpg",
+   "rules": [
+    "upload.double_extension"
+   ]
+  },
+  {
+   "name": ".htaccess",
+   "rules": [
+    "upload.server_config"
+   ]
+  },
+  {
+   "name": "uploads/WEB.CONFIG",
+   "rules": [
+    "upload.server_config"
+   ]
+  },
+  {
+   "name": ".user.ini",
+   "rules": [
+    "upload.server_config"
+   ]
+  },
+  {
+   "name": "report.final.pdf",
+   "rules": []
+  },
+  {
+   "name": "archive.tar.gz",
+   "rules": []
+  },
+  {
+   "name": "my.photo.jpeg",
+   "rules": []
+  },
+  {
+   "name": "php.txt",
+   "rules": []
+  }
+ ],
+ "mismatch": [
+  {
+   "type": "png",
+   "name": "a.jpg",
+   "mismatch": false
+  },
+  {
+   "type": "zip",
+   "name": "a.jpg",
+   "mismatch": true
+  },
+  {
+   "type": "pdf",
+   "contentType": "image/png",
+   "mismatch": true
+  },
+  {
+   "type": "docx",
+   "name": "a.docx",
+   "mismatch": false
+  },
+  {
+   "type": "zip",
+   "name": "a.docx",
+   "mismatch": false
+  },
+  {
+   "type": "html",
+   "name": "data.csv",
+   "mismatch": true
+  },
+  {
+   "type": "text",
+   "name": "data.csv",
+   "contentType": "text/csv",
+   "mismatch": false
+  },
+  {
+   "type": "unknown",
+   "name": "a.jpg",
+   "mismatch": false
+  },
+  {
+   "type": "gzip",
+   "name": "notes.unknownext",
+   "mismatch": false
+  }
+ ],
+ "signatures": [
+  {
+   "rule": {
+    "id": "t.text",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "Hello"
+     }
+    ],
+    "condition": "any"
+   },
+   "sample": "say Hello there",
+   "match": true
+  },
+  {
+   "rule": {
+    "id": "t.nocase",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "HeLLo",
+      "nocase": true
+     }
+    ],
+    "condition": "any"
+   },
+   "sample": "say hello there",
+   "match": true
+  },
+  {
+   "rule": {
+    "id": "t.case",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "HeLLo"
+     }
+    ],
+    "condition": "any"
+   },
+   "sample": "say hello there",
+   "match": false
+  },
+  {
+   "rule": {
+    "id": "t.hex",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "hex": "3c 3f 70 68 70"
+     }
+    ],
+    "condition": "all"
+   },
+   "sample": "x<?php y",
+   "match": true
+  },
+  {
+   "rule": {
+    "id": "t.regex",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "regex": "eval\\s*\\(\\s*\\$_POST",
+      "anchor": "eval"
+     }
+    ],
+    "condition": "any"
+   },
+   "sample": "<?php eval ( $_POST['x']); ?>",
+   "match": true
+  },
+  {
+   "rule": {
+    "id": "t.regex_no",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "regex": "eval\\s*\\(\\s*\\$_POST",
+      "anchor": "eval"
+     }
+    ],
+    "condition": "any"
+   },
+   "sample": "eval is a word; $_POST is too",
+   "match": false
+  },
+  {
+   "rule": {
+    "id": "t.expr",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "aaa"
+     },
+     {
+      "id": "b",
+      "text": "bbb"
+     },
+     {
+      "id": "c",
+      "text": "ccc"
+     }
+    ],
+    "condition": "a and (b or c) and not c"
+   },
+   "sample": "aaa bbb",
+   "match": true
+  },
+  {
+   "rule": {
+    "id": "t.expr2",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "aaa"
+     },
+     {
+      "id": "b",
+      "text": "bbb"
+     },
+     {
+      "id": "c",
+      "text": "ccc"
+     }
+    ],
+    "condition": "a and (b or c) and not c"
+   },
+   "sample": "aaa bbb ccc",
+   "match": false
+  },
+  {
+   "rule": {
+    "id": "t.count",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "aaa"
+     },
+     {
+      "id": "b",
+      "text": "bbb"
+     },
+     {
+      "id": "c",
+      "text": "ccc"
+     }
+    ],
+    "condition": "2"
+   },
+   "sample": "ccc aaa",
+   "match": true
+  },
+  {
+   "rule": {
+    "id": "t.utf8",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "café"
+     }
+    ],
+    "condition": "any"
+   },
+   "sample": "un café noir",
+   "match": true
+  },
+  {
+   "rule": {
+    "id": "t.across",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "MARKERTEXT"
+     }
+    ],
+    "condition": "any"
+   },
+   "sample": "@@ACROSS@@",
+   "match": true
+  }
+ ],
+ "invalid": [
+  {
+   "rule": "x",
+   "code": "shape"
+  },
+  {
+   "rule": {
+    "id": "Bad Id",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "abc"
+     }
+    ],
+    "condition": "any"
+   },
+   "code": "id"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "",
+    "strings": [
+     {
+      "id": "a",
+      "text": "abc"
+     }
+    ],
+    "condition": "any"
+   },
+   "code": "title"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [],
+    "condition": "any"
+   },
+   "code": "strings"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "ab"
+     }
+    ],
+    "condition": "any"
+   },
+   "code": "text"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "hex": "3g 00 11"
+     }
+    ],
+    "condition": "any"
+   },
+   "code": "hex"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "regex": "(a+)+b",
+      "anchor": "aaa"
+     }
+    ],
+    "condition": "any"
+   },
+   "code": "regex"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "regex": "(?=x)abc",
+      "anchor": "abc"
+     }
+    ],
+    "condition": "any"
+   },
+   "code": "regex"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "regex": "abc\\1",
+      "anchor": "abc"
+     }
+    ],
+    "condition": "any"
+   },
+   "code": "regex"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "regex": "abc"
+     }
+    ],
+    "condition": "any"
+   },
+   "code": "anchor"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "abc",
+      "hex": "616263"
+     }
+    ],
+    "condition": "any"
+   },
+   "code": "string_kind"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "abc"
+     },
+     {
+      "id": "a",
+      "text": "def"
+     }
+    ],
+    "condition": "any"
+   },
+   "code": "duplicate_string"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "abc"
+     }
+    ],
+    "condition": "a and zz"
+   },
+   "code": "unknown_string"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "abc"
+     }
+    ],
+    "condition": "a and"
+   },
+   "code": "condition"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "abc"
+     }
+    ],
+    "condition": "((((((((( a )))))))))"
+   },
+   "code": "condition"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "a",
+      "text": "abc"
+     }
+    ],
+    "condition": "5"
+   },
+   "code": "condition"
+  },
+  {
+   "rule": {
+    "id": "ok",
+    "title": "t",
+    "strings": [
+     {
+      "id": "and",
+      "text": "abc"
+     }
+    ],
+    "condition": "any"
+   },
+   "code": "string_id"
+  }
+ ]
+}

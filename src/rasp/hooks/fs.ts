@@ -19,6 +19,9 @@ import { currentContext, inputsOf, type RaspContext } from '../context';
 import { allowLists, check, isActive, strongest } from '../engine';
 import { detectPath, type FileOp } from '../detect';
 import { RaspBlockedError, type Finding } from '../types';
+// SHIELD: uploads — backdoor checks on writes, renames, copies and chmod, and inspection of streams a multipart request writes.
+import { detectUploadChmod, detectUploadWrite } from '../upload-taint';
+import { isMultipartRequest, watchUploadStream } from '../upload';
 
 const operations = {
   readFile: 'read', readFileSync: 'read', createReadStream: 'read',
@@ -28,6 +31,8 @@ const operations = {
   unlink: 'delete', unlinkSync: 'delete', rm: 'delete', rmSync: 'delete',
   rename: 'rename', renameSync: 'rename', readdir: 'list', readdirSync: 'list',
   copyFile: 'read', copyFileSync: 'read',
+  // SHIELD: uploads — chmod is a path access (traversal checks) and a backdoor check (an execute bit on an upload).
+  chmod: 'read', chmodSync: 'read',
 } as const satisfies Record<string, FileOp>;
 type Api = keyof typeof operations;
 type Saved = { owner: object; api: Api; descriptor: PropertyDescriptor; wrapper: unknown };
@@ -75,6 +80,23 @@ function openOp(flags: unknown): FileOp {
   return 'read';
 }
 
+/** SHIELD: uploads — the backdoor check of one call (README "Backdoor checks"). Never throws. */
+function uploadCheck(api: Api, values: unknown[], op: FileOp): Finding | null {
+  try {
+    if (api === 'chmod' || api === 'chmodSync') return detectUploadChmod(pathString(values[0]), values[1]);
+    if (api === 'rename' || api === 'renameSync' || api === 'copyFile' || api === 'copyFileSync') {
+      return detectUploadWrite(pathString(values[1]), undefined, pathString(values[0]));
+    }
+    if (op === 'write' || op === 'append') {
+      const data = api === 'writeFile' || api === 'writeFileSync' || api === 'appendFile' || api === 'appendFileSync' ? values[1] : undefined;
+      return detectUploadWrite(pathString(values[0]), data);
+    }
+  } catch {
+    // fail open
+  }
+  return null;
+}
+
 function inspect(api: Api, values: unknown[], promises: boolean): void {
   if (checking || syncDepth > 0) return;
   try {
@@ -96,8 +118,10 @@ function inspect(api: Api, values: unknown[], promises: boolean): void {
           checks.push({ path, op: pathOp, finding: detectPath(path, pathOp, inputs, roots, inRequest) });
         }
       }
+      // SHIELD: uploads — a write that stores an upload, a rename or copy of one, an execute bit on one.
+      const backdoor = uploadCheck(api, values, op);
       // Both paths are checked; the strongest decision wins.
-      const winner = strongest(...checks.map((c) => c.finding));
+      const winner = strongest(...checks.map((c) => c.finding), backdoor);
       // A finding that lost to the winner was never applied: its path stays
       // unmarked, so a later call on it in this request is checked again.
       for (const c of checks) if (!(winner && c.finding && c.finding !== winner)) markSeen(ctx, c.path, c.op);
@@ -124,6 +148,18 @@ function restore(saved: Saved[]): void {
   }
 }
 
+/** SHIELD: uploads — watches a write stream opened during a multipart request. Never throws. */
+function watchStream(stream: unknown, path: unknown): void {
+  try {
+    if (!isActive()) return;
+    const ctx = currentContext();
+    const p = pathString(path);
+    if (p && ctx && isMultipartRequest(ctx)) watchUploadStream(stream, p, ctx);
+  } catch {
+    // fail open
+  }
+}
+
 /** Idempotent; a failed installation restores every replaced descriptor. */
 export function installFsHooks(): boolean {
   if (installed) return true;
@@ -144,7 +180,12 @@ export function installFsHooks(): boolean {
             if (promises) return Promise.reject(error);
             throw error;
           }
-          if (!sync) return Reflect.apply(original, this, values);
+          if (!sync) {
+            const result = Reflect.apply(original, this, values);
+            // SHIELD: uploads — a stream a multipart request writes is inspected as it is written.
+            if (api === 'createWriteStream' && gen === generation) watchStream(result, values[0]);
+            return result;
+          }
           syncDepth++;
           try {
             return Reflect.apply(original, this, values);

@@ -14,6 +14,7 @@ import { setModelOutputRecording } from './model-output';
 import { AttackType, ATTACK_TYPES, Finding, MONITOR_ONLY, RaspAllow, RaspBlockedError, RaspMode } from './types';
 import { BUILT_IN_RULES, VirtualPatch } from './vpatch';
 import { maskTarget, maskText } from '../masking';
+import { edgeSaysSuspect, signVerdict, VERDICT_HEADER, type EdgeKey } from './edge-context';
 
 /** The parts of a verified signed config the engine uses (config-client.ts verifies it). */
 export type RemoteConfig = {
@@ -33,6 +34,8 @@ export type RemoteConfig = {
   customRules?: unknown[] | null;
   /** Decoy paths, already read (deception.ts parseDeception); null = deception off. */
   deception?: DeceptionConfig | null;
+  /** SHIELD: protection triangle — keys for Edge's context header and the app's verdicts (edge-context.ts). */
+  edgeKeys?: EdgeKey[];
 };
 
 export type RaspEventSink = {
@@ -241,7 +244,7 @@ const safeRoute = (r: string) => {
 const safeMethod = (m: string | undefined) => (m && /^[A-Za-z]{3,10}$/.test(m) ? m.toUpperCase() : '');
 
 export type Decision = 'blocked' | 'monitored';
-export type FindingExtra = { framework?: string; route?: string; method?: string; path?: string };
+export type FindingExtra = { framework?: string; route?: string; method?: string; path?: string; tightenedByEdge?: boolean };
 
 /** Builds and queues the event for a finding. Never throws: reporting never breaks the call. */
 function emit(f: Finding, sink: string, extra: FindingExtra, decision: Decision, mode: RaspMode, eventId: string): void {
@@ -268,6 +271,9 @@ function emit(f: Finding, sink: string, extra: FindingExtra, decision: Decision,
     opt('shield360.rasp.route', route);
     opt('shield360.rasp.method', safeMethod(extra.method ?? ctx?.method));
     opt('shield360.rasp.framework', extra.framework ?? ctx?.framework);
+    // SHIELD: protection triangle — the Edge request this happened in (one correlated event in Shield360), and a tightening.
+    opt('shield360.edge.request_id', ctx?.edge?.rid);
+    if (extra.tightenedByEdge) attrs['shield360.rasp.tightened_by_edge'] = 'true';
     opt('shield360.rasp.cve', f.cve && /^CVE-\d{4}-\d{4,7}$/.test(f.cve) ? f.cve : undefined);
     if (state.remote?.snippets && f.input) attrs['shield360.rasp.snippet'] = maskSnippet(f.input.value);
     if (state.remote?.reportTargets && TARGET_RULES.has(f.rule)) opt('shield360.rasp.target', maskTarget(f.target));
@@ -287,14 +293,44 @@ export function handleFinding(f: Finding, sink: string, extra: FindingExtra = {}
   // A rule's own action (virtual patches, sink rules) caps the mode.
   if (f.action && RANK[f.action] < RANK[mode]) mode = f.action;
   if (mode === 'off') return null;
+  // SHIELD: protection triangle — a client Edge already marked (flagged, deep in a honeypot, high risk) is
+  // blocked for injection-class attacks this app only monitors. A rule's own action still caps it.
+  const ctx = currentContext();
+  const tightened = mode === 'monitor' && !f.action && TIGHTEN.has(f.attack) && edgeSaysSuspect(ctx?.edge) && !state.monitorOnly;
+  if (tightened) mode = 'block';
   const decision: Decision = mode === 'block' && !MONITOR_ONLY.has(f.attack) ? 'blocked' : 'monitored';
   const eventId = randomBytes(16).toString('hex');
-  emit(f, sink, extra, decision, mode, eventId);
+  emit(f, sink, { ...extra, ...(tightened ? { tightenedByEdge: true } : {}) }, decision, mode, eventId);
+  sendVerdict(f, decision);
   // Custom rules that look at built-in findings; the first blocking decision wins, the built-in one first.
   const custom = f.attack === 'custom_rule' ? undefined : runFindingRules(f, sink, extra);
   if (decision === 'blocked') throw new RaspBlockedError(f.attack, f.rule, eventId);
   if (custom) throw custom;
   return decision;
+}
+
+/** SHIELD: protection triangle — attacks Edge's view of the client may tighten from monitor to block. */
+const TIGHTEN = new Set<AttackType>(['sql_injection', 'nosql_injection', 'command_injection', 'shell_spawn', 'code_injection', 'path_traversal', 'ssrf', 'deserialization', 'xxe'] as AttackType[]);
+
+/**
+ * SHIELD: protection triangle — for a request that came through Edge (a
+ * verified context), tells Edge about the detection in a signed response
+ * header: block for a blocked attack, flag for a monitored one. Once per
+ * request, never for allow-listed findings, never throws.
+ */
+function sendVerdict(f: Finding, decision: Decision): void {
+  try {
+    const ctx = currentContext();
+    const keys = state.remote?.edgeKeys;
+    if (!ctx?.edge || !ctx.setHeader || ctx.verdictSent || !keys?.length) return;
+    if (f.attack === 'custom_rule' && decision !== 'blocked') return;
+    const v = signVerdict(keys, { rid: ctx.edge.rid, iat: Math.floor(Date.now() / 1000), act: decision === 'blocked' ? 'block' : 'flag', cat: String(f.attack), src: 'rasp', ttl: decision === 'blocked' ? 3600 : 900 });
+    if (!v) return;
+    ctx.setHeader(VERDICT_HEADER, v);
+    ctx.verdictSent = true;
+  } catch {
+    // reporting to Edge never breaks the call
+  }
 }
 
 /** Reports each custom finding rule the finding matches; returns the block error of the first that blocks. Never throws. */

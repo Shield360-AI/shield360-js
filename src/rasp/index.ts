@@ -17,6 +17,7 @@
  * config).
  */
 import { tmpdir } from 'os';
+import { parseEdgeKeys } from './edge-context';
 import { join } from 'path';
 import { runBaseline } from './baseline';
 import { parseDeception } from './deception';
@@ -117,6 +118,8 @@ export function toRemote(c: RaspClaims): RemoteConfig {
     sinks: Array.isArray(c.sinks) ? c.sinks : null,
     customRules: Array.isArray(c.customRules) ? c.customRules : null,
     deception: parseDeception(c.deception),
+    // SHIELD: protection triangle — the environment's Edge context keys.
+    edgeKeys: parseEdgeKeys(c.edgeContext),
   };
 }
 
@@ -273,5 +276,7 @@ export { raspExpress, raspExpressErrorHandler, raspFastify, raspKoa, raspHttp, w
 export { recordModelOutput, recordToolArguments } from './model-output';
 export { runInRaspScope, currentContext as currentRaspContext, inputsOf } from './context';
 export { check as raspCheck } from './engine';
+// SHIELD: protection triangle — Edge's context header and the app's verdict (edge-context.ts).
+export { verifyEdgeContext, signVerdict, verifyVerdict, parseEdgeKeys, pathHash as edgePathHash, CONTEXT_HEADER as EDGE_CONTEXT_HEADER, VERDICT_HEADER as EDGE_VERDICT_HEADER } from './edge-context';
 export { compileRuleExpr, evaluateRuleExpr, RULE_EXPR_LIMITS, RULE_FIELDS } from './rule-expr';
 export type { RuleSubject, RuleExprErrorCode } from './rule-expr';

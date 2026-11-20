@@ -36,6 +36,11 @@ export type RaspContext = {
   auto?: boolean;
   /** SHIELD: deception already ran for this request (the zero-code capture runs it first), so middleware skips it. */
   deception?: boolean;
+  /** SHIELD: protection triangle — Edge's verified context for this request (edge-context.ts). */
+  edge?: import('./edge-context').EdgeContext;
+  /** SHIELD: protection triangle — sets a response header while the headers are not sent (the verdict for Edge). */
+  setHeader?: (name: string, value: string) => void;
+  verdictSent?: boolean;
 };
 
 export const storage = new AsyncLocalStorage<RaspContext>();

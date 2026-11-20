@@ -60,6 +60,8 @@ export type RaspClaims = {
   /** Passive IAST switch and sampling rate (README "Passive IAST"). */
   iast?: 'on' | 'off';
   iastSampleRate?: number;
+  /** SHIELD: protection triangle — { keys: [{ kid, key }] } for Edge's context header and verdicts (edge-context.ts). */
+  edgeContext?: unknown;
 };
 
 export type PinnedKey = { kid?: string; x: string; key: KeyObject };

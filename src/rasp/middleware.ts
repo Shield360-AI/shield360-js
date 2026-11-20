@@ -142,6 +142,15 @@ function begin(make: () => RaspContext, body: () => BodyShape | undefined, noBod
   }
 }
 
+
+/** SHIELD: protection triangle — lets RASP set the verdict header on a Node response while its headers are not out. */
+function nodeHeaderSetter(res: ServerResponse | undefined): ((name: string, value: string) => void) | undefined {
+  if (!res || typeof res.setHeader !== 'function') return undefined;
+  return (name, value) => {
+    if (!res.headersSent) res.setHeader(name, value);
+  };
+}
+
 // ---- Express ---------------------------------------------------------------
 
 type ExpressReq = IncomingMessage & { originalUrl?: string; query?: unknown; params?: unknown; body?: unknown; route?: { path?: unknown }; ip?: unknown };
@@ -244,6 +253,7 @@ export function raspExpress(options: RaspExpressOptions = {}) {
     );
     if (r.blocked) return sendBlocked(res, r.blocked);
     if (!r.ctx) return next();
+    r.ctx.setHeader = nodeHeaderSetter(res);
     storage.run(r.ctx, () => next());
   };
 }
@@ -349,6 +359,7 @@ export function raspFastify(fastify: FastifyLike, _opts: unknown, done: Next): v
     if (r.blocked) return fastifyBlocked(reply, r.blocked);
     if (!r.ctx) return next();
     r.ctx.late = undefined;
+    r.ctx.setHeader = nodeHeaderSetter((reply as { raw?: ServerResponse }).raw);
     request[FASTIFY_CTX] = r.ctx;
     storage.run(r.ctx, () => next());
   });
@@ -432,6 +443,7 @@ export function raspKoa() {
       await next();
       return;
     }
+    r.ctx.setHeader = nodeHeaderSetter((k as { res?: ServerResponse }).res);
     try {
       await storage.run(r.ctx, () => next());
     } catch (e) {
@@ -465,6 +477,7 @@ export function raspHttp<H extends HttpHandler>(handler: H): H {
     );
     if (r.blocked) return sendBlocked(res, r.blocked);
     if (!r.ctx) return handler.call(this, req, res);
+    r.ctx.setHeader = nodeHeaderSetter(res);
     return storage.run(r.ctx, () => {
       try {
         const out = handler.call(this, req, res) as unknown;

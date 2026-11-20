@@ -4,9 +4,10 @@
  * virtual patches. Inputs stay in memory, in the request's context only.
  */
 import { currentContext, newContext, storage, type RaspContext } from './context';
+import { CONTEXT_HEADER, REQUEST_ID_HEADER, verifyEdgeContext } from './edge-context';
 import { detectUpload } from './detect';
 import { customFinding, matchRequestRules, requestSubject } from './custom-rules';
-import { applicationName, check, customRules, handleFinding, modeFor, virtualPatches } from './engine';
+import { applicationName, check, customRules, handleFinding, modeFor, remoteConfig, virtualPatches } from './engine';
 import { addInput, flatten, MAX_RAW_BODY, parseCookies } from './normalize';
 import { RaspBlockedError } from './types';
 import { MAX_VP_TEXT, matchVirtualPatches, type VpRequest } from './vpatch';
@@ -151,6 +152,13 @@ export function captureRequest(shape: RequestShape): RaspContext {
     ranBody: Boolean(auto?.vp?.ranBody),
   };
   if (auto?.rules) ctx.rules = auto.rules;
+  // SHIELD: protection triangle — Edge's signed context, verified (never trusted unverified).
+  const edgeValue = header(shape.headers, CONTEXT_HEADER);
+  if (edgeValue) {
+    const keys = remoteConfig()?.edgeKeys ?? [];
+    const edge = verifyEdgeContext(keys, edgeValue, { method: shape.method, path, requestId: header(shape.headers, REQUEST_ID_HEADER) || undefined });
+    if (edge) ctx.edge = edge;
+  }
   return ctx;
 }
 

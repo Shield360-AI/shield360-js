@@ -76,6 +76,9 @@ function compiled(p: DefendPolicy): Compiled {
 
 const inAny = (ip: string | undefined, list: Net[]) => !!ip && list.some((n) => inCidr(ip, n));
 
+/** A trusted client (the environment's allow list): never trapped or stopped. */
+export const isTrusted = (policy: DefendPolicy, ip: string | undefined) => inAny(ip, compiled(policy).allow);
+
 /** Whether `path` is `prefix` or below it on a segment boundary. */
 export function pathUnder(path: string, prefix: string): boolean {
   if (prefix === '/' || path === prefix) return true;

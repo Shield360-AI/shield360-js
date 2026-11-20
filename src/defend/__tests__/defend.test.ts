@@ -19,6 +19,7 @@ const policy = (over: Partial<DefendPolicy> = {}): DefendPolicy => ({
   challenge: [],
   allow: [],
   traps: { action: 'block', ttlSeconds: 900 },
+  honeypots: null,
   edgeKeys: [],
   ...over,
 });

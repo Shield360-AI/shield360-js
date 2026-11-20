@@ -4,6 +4,7 @@
  * whose condition cannot be read is left out entirely, a list entry that is
  * not an address is skipped.
  */
+import { parseHoneypots } from '../defend-traps/honeypots';
 import { parseEdgeKeys } from '../rasp/edge-context';
 import { parseCidr } from '../rasp/rule-expr';
 import { CLIENT_TYPES, type ClientType, type DefendPolicy, type DefendRule } from './types';
@@ -125,6 +126,7 @@ export function parseDefendPolicy(claims: unknown): DefendPolicy | null {
     deny: list(claims.deny),
     challenge: list(claims.challenge),
     allow: list(claims.allow),
+    honeypots: parseHoneypots(claims.honeypots),
     edgeKeys: parseEdgeKeys(claims.edgeContext),
     traps: {
       // Absent: block. A trap hit is near certain (no person or verified agent ever reaches one), so it stops the client at once.

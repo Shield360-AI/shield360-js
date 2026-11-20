@@ -16,7 +16,9 @@ import { join } from 'path';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { parsePublicKeys, RaspConfigClient, type RaspClaims } from '../rasp/config-client';
 import { SuspiciousTable, suspiciousTable } from '../rasp/deception';
-import { checkContent, decide, failResult, RateTable, rateRulesFor } from './engine';
+import { checkContent, decide, failResult, isTrusted, RateTable, rateRulesFor } from './engine';
+import { fingerprint } from '../defend-traps/crumb';
+import { Honeypots, type HoneypotHit } from '../defend-traps/honeypots';
 import { DEFEND_JWS_TYPE, DEFEND_POLICY_PATH, parseDefendPolicy } from './policy';
 import { carriesAgentProof, factsOf } from './request';
 import { BreadthCounter, classifyClient } from '../client-type';
@@ -68,6 +70,8 @@ export type Defend = {
   respond(request: Request, call?: DefendCallOptions): Promise<Response | null>;
   /** The app saw a trap hit by this request's client: it is marked suspected for the policy's trap TTL and the hit is reported. */
   trapHit(request: unknown, trap: string, call?: DefendCallOptions): void;
+  /** The honeypot crumbs made for this request's client, to place where agents look and people don't (robots.txt lines, an HTML comment, a header, the LLM tripwire text). Null while honeypots are off, and for trusted clients and verified agents. */
+  crumbs(request: unknown, call?: DefendCallOptions): ReturnType<Honeypots['crumbsFor']> | null;
   /** The app saw a failed sign-in from this request's client: reported (never the user name or password). */
   failedLogin(request: unknown, call?: DefendCallOptions): void;
   /** The policy in force, or null. */
@@ -89,12 +93,27 @@ export function envMode(env: NodeJS.ProcessEnv): 'off' | DefendMode | undefined 
   return v === 'off' || v === 'monitor' || v === 'enforce' ? v : undefined;
 }
 
+/** Private, loopback and link-local addresses: never trapped (the spec's "never"). */
+export function privateIp(ip: string): boolean {
+  const v = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+  if (/^(10\.|127\.|192\.168\.|169\.254\.|0\.)/.test(v) || /^172\.(1[6-9]|2\d|3[01])\./.test(v)) return true;
+  const l = v.toLowerCase();
+  return l === '::1' || l.startsWith('fe80:') || l.startsWith('fc') || l.startsWith('fd');
+}
+
 function statusOf(result: DefendResult): number {
   return result.decision === 'require_sign_in' ? 401 : 403;
 }
 
 function answerNode(res: ServerResponse, result: DefendResult): void {
   if (res.headersSent) return;
+  if (result.decoy && result.decision === 'allow') {
+    res.statusCode = result.decoy.status;
+    res.setHeader('Content-Type', result.decoy.contentType);
+    res.setHeader('Cache-Control', 'no-store');
+    res.end(result.decoy.body);
+    return;
+  }
   res.statusCode = statusOf(result);
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Shield360-Defend', result.decision);
@@ -103,6 +122,7 @@ function answerNode(res: ServerResponse, result: DefendResult): void {
 }
 
 function answerFetch(result: DefendResult): Response {
+  if (result.decoy && result.decision === 'allow') return new Response(result.decoy.body, { status: result.decoy.status, headers: { 'Content-Type': result.decoy.contentType, 'Cache-Control': 'no-store' } });
   return new Response(BLOCK_BODY, { status: statusOf(result), headers: { 'Content-Type': 'application/json', 'Shield360-Defend': result.decision, 'Cache-Control': 'no-store' } });
 }
 
@@ -245,6 +265,35 @@ export function createDefend(options: DefendOptions): Defend {
     });
   }
 
+  let hpCache: { secret: Buffer; mode: string; hp: Honeypots } | null = null;
+  function honeypotsFor(policy: DefendPolicy): Honeypots | null {
+    const h = policy.honeypots;
+    if (!h) return null;
+    if (!hpCache || !hpCache.secret.equals(h.secret) || hpCache.mode !== h.mode) hpCache = { secret: h.secret, mode: h.mode, hp: new Honeypots(h, options.honeypots?.words ?? [], now) };
+    return hpCache.hp;
+  }
+
+  /** A crumb or decoy in this request: report it, mark the client by level and mode, answer decoys with fake data. */
+  function honeypotStep(hp: Honeypots, facts: DefendFacts, result: DefendResult): DefendResult {
+    const ip = facts.ip as string;
+    const ua = facts.headers['user-agent'] ?? '';
+    const fp = fingerprint(ip, ua).toString('hex');
+    const hit: HoneypotHit | null = hp.check({ path: facts.path, query: facts.query, headers: facts.headers }, fp);
+    const decoy = options.honeypots?.files === false ? null : hp.serve(facts.path, ip, ua);
+    const header = options.honeypots?.header === false ? undefined : hp.crumbsFor(ip, ua).header.value;
+    if (!hit) return decoy ? { ...result, decoy } : { ...result, ...(header ? { crumbHeader: header } : {}) };
+    const action = hp.actionFor(hit.level);
+    const ttl = current?.traps.ttlSeconds ?? 3600;
+    if (action !== 'monitor') marks.mark(ip, ttl);
+    const reasons = ['trap:honeypot', `level:${hit.level}`, `crumb:${hit.state}`, ...(hit.foreign ? ['crumb:foreign'] : []), `decoy:${hit.decoy.replace(/[^a-z0-9_.:-]/g, '').slice(0, 40) || 'path'}`];
+    reporter?.add({ kind: 'trap_hit', ip, path: facts.path.slice(0, 256), method: facts.method, clientType: 'suspected_ai_agent', reasons, ruleIds: [] });
+    // A decoy keeps answering with fake data (the client learns nothing); a fake credential on a real route is refused now when the mode blocks.
+    if (decoy) return { ...result, decoy, reasons: [...result.reasons, ...reasons], clientType: 'suspected_ai_agent' };
+    if (action === 'monitor' || m() === 'monitor') return { ...result, reasons: [...result.reasons, ...reasons], clientType: 'suspected_ai_agent', ...(action !== 'monitor' ? { wouldBe: action === 'block' ? 'deny' : 'challenge' } : {}) };
+    return { decision: action === 'block' ? 'deny' : 'challenge', reasons: [...result.reasons, ...reasons], ruleIds: result.ruleIds, ttl, clientType: 'suspected_ai_agent' };
+  }
+  const m = () => mode();
+
   async function defendOne(request: unknown, call: DefendCallOptions = {}): Promise<DefendResult> {
     const m = mode();
     if (m === 'off') return { decision: 'allow', reasons: ['off'], ruleIds: [], ttl: 0 };
@@ -283,7 +332,10 @@ export function createDefend(options: DefendOptions): Defend {
       const content = checkContent(facts.content, sensitiveData);
       const base = { policy: policy as DefendPolicy, facts, mode: m, failMode, agent, trapHit, classification, content, sensitiveData } as const;
       const shared = policy ? await sharedOver(policy, facts, base) : undefined;
-      const result = decide({ ...base, policy, rates, nowMs: now(), sharedOver: shared });
+      let result = decide({ ...base, policy, rates, nowMs: now(), sharedOver: shared });
+      // Honeypots: the same stateless crumbs as Edge. Never for verified agents or trusted clients.
+      const hp = policy && !agent?.verified && !isTrusted(policy, facts.ip) && facts.ip && !privateIp(facts.ip) ? honeypotsFor(policy) : null;
+      if (hp && result.decision === 'allow') result = honeypotStep(hp, facts, result);
       report(result, facts);
       return result;
     } catch {
@@ -306,7 +358,10 @@ export function createDefend(options: DefendOptions): Defend {
         defendOne(req, { content })
           .then((result) => {
             req.shield360Defend = result;
-            if (result.decision === 'allow') return next();
+            if (result.decision === 'allow' && !result.decoy) {
+              if (result.crumbHeader && !res.headersSent) res.setHeader('X-Debug-Trace', result.crumbHeader);
+              return next();
+            }
             if (o.onDecision?.(req, res, result)) return;
             answerNode(res, result);
           })
@@ -316,7 +371,7 @@ export function createDefend(options: DefendOptions): Defend {
     http<H extends (req: IncomingMessage, res: ServerResponse) => unknown>(handler: H): H {
       const wrapped = function (this: unknown, req: IncomingMessage, res: ServerResponse) {
         void defendOne(req).then(
-          (result) => (result.decision === 'allow' ? handler.call(this, req, res) : answerNode(res, result)),
+          (result) => (result.decision === 'allow' && !result.decoy ? handler.call(this, req, res) : answerNode(res, result)),
           () => handler.call(this, req, res),
         );
       };
@@ -331,12 +386,12 @@ export function createDefend(options: DefendOptions): Defend {
           content = undefined;
         }
         const result = await defendOne(request, { content });
-        return result.decision === 'allow' ? handler(request, context) : answerFetch(result);
+        return result.decision === 'allow' && !result.decoy ? handler(request, context) : answerFetch(result);
       };
     },
     async respond(request: Request, call?: DefendCallOptions) {
       const result = await defendOne(request, call);
-      return result.decision === 'allow' ? null : answerFetch(result);
+      return result.decision === 'allow' && !result.decoy ? null : answerFetch(result);
     },
     trapHit(request: unknown, trap: string, call: DefendCallOptions = {}) {
       try {
@@ -347,6 +402,18 @@ export function createDefend(options: DefendOptions): Defend {
         reporter?.add({ kind: 'trap_hit', ...(facts.ip ? { ip: facts.ip } : {}), path: facts.path.slice(0, 256), method: facts.method, clientType: 'suspected_ai_agent', reasons: [`trap:${code}`], ruleIds: [] });
       } catch {
         // never
+      }
+    },
+    crumbs(request: unknown, call: DefendCallOptions = {}) {
+      try {
+        const policy = current;
+        if (!policy) return null;
+        const facts = factsOf(request, call, factsOpts);
+        if (!facts.ip || privateIp(facts.ip) || isTrusted(policy, facts.ip)) return null;
+        const hp = honeypotsFor(policy);
+        return hp ? hp.crumbsFor(facts.ip, facts.headers['user-agent'] ?? '') : null;
+      } catch {
+        return null;
       }
     },
     failedLogin(request: unknown, call: DefendCallOptions = {}) {

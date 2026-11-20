@@ -96,6 +96,8 @@ export function factsOf(req: unknown, call: DefendCallOptions = {}, o: FactsOpti
     usableIp(socket?.remoteAddress);
   const facts: DefendFacts = { method, path: pathOf(target), rawPath: rawPathOf(target), headers };
   if (ip) facts.ip = ip;
+  const qi = target.indexOf('?');
+  if (qi >= 0) facts.query = target.slice(qi + 1, qi + 1 + 2048);
   const country = call.country ?? (o.geoHeaders?.country ? headers[o.geoHeaders.country.toLowerCase()] : undefined);
   if (typeof country === 'string' && /^[A-Za-z]{2}$/.test(country.trim())) facts.country = country.trim().toUpperCase();
   const asnRaw = call.asn ?? (o.geoHeaders?.asn ? headers[o.geoHeaders.asn.toLowerCase()] : undefined);

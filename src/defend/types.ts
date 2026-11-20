@@ -30,6 +30,10 @@ export type DefendResult = {
   wouldBe?: DefendDecision;
   /** The client type, when one is known. */
   clientType?: ClientType;
+  /** A honeypot decoy to answer with instead of the app (harmless fake data holding crumbs for this client). */
+  decoy?: { status: number; contentType: string; body: string };
+  /** The crumb header value the middleware adds to an allowed response (honeypots on). */
+  crumbHeader?: string;
 };
 
 export type DefendMode = 'enforce' | 'monitor';
@@ -73,6 +77,8 @@ export type DefendPolicy = {
   allow: string[];
   /** What a client marked by a trap hit gets, and for how long it stays marked. Default block: a trap is never touched by a person or a verified agent. */
   traps: { action: 'monitor' | 'block' | 'challenge'; ttlSeconds: number };
+  /** The environment's honeypots (Edge → Honeypots): the same crumbs Edge serves; null when off. */
+  honeypots: import('../defend-traps/honeypots').HoneypotSettings | null;
   /** The keys Edge signs its context header with (protection triangle); empty without Edge. */
   edgeKeys: import('../rasp/edge-context').EdgeKey[];
 };
@@ -82,6 +88,8 @@ export type DefendFacts = {
   method: string;
   /** The path, before any `?`, percent-decoded once. */
   path: string;
+  /** The query string, as received (honeypot crumbs are looked for in it; never reported). */
+  query?: string;
   /** The path as received (not decoded): what Edge's context header hashes. */
   rawPath?: string;
   /** Edge's verified context for this request (protection triangle), when Edge is in front. */
@@ -131,6 +139,8 @@ export type DefendOptions = {
   report?: boolean;
   /** Ask Shield360 for rate limits shared by every instance (POST /api/defend/decide). Adds a network call to requests a rate rule covers; local limits apply when it fails. Default off. */
   sharedRateLimits?: boolean | { timeoutMs?: number };
+  /** Honeypots, when they are on for the environment: words from the app's own routes for decoy names, and whether a crumb header is added to responses (default true). */
+  honeypots?: { words?: string[]; header?: boolean; files?: boolean };
   cacheDir?: string;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;

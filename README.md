@@ -191,7 +191,7 @@ npm install shield360
 export OTEL_SERVICE_NAME=orders-api
 export SHIELD360_URL=https://app.shield360.ai
 export SHIELD360_API_KEY=...                      # from Settings > API keys
-export SHIELD360_RASP=monitor                     # or block; leave unset for telemetry only
+export SHIELD360_RASP=monitor                     # the default; block blocks attacks, off turns RASP off
 export SHIELD360_CONFIG_PUBLIC_KEY='{"kty":"OKP",...}'  # Runtime protection settings
 export SHIELD360_GUARDS=prompt_injection:block,pii:warn   # optional: guards on LLM calls
 
@@ -203,7 +203,7 @@ NODE_OPTIONS="--require shield360/register" npm start
 What the preload does, before the app's first line runs:
 
 - Calls `Shield360.init()` with the settings from the environment (`OTEL_SERVICE_NAME`, `OTEL_DEPLOYMENT_ENVIRONMENT`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_RESOURCE_ATTRIBUTES`, `SHIELD360_URL`, `SHIELD360_API_KEY`, `SHIELD360_DISABLED_INSTRUMENTORS` and the other `SHIELD360_*` variables `init()` reads).
-- With `SHIELD360_RASP=monitor|block`, installs the RASP sink hooks before the app takes its own references to `child_process`, `fs` and the database drivers, and captures every request served by an `http` or `https` server (Express, Fastify, Koa, Nest and raw `http`), so no middleware is needed. Adding `raspExpress()` or another framework middleware as well is fine: it takes over the request with its richer view and nothing is reported twice.
+- Turns RASP on in monitor mode when `SHIELD360_RASP` is unset: attacks are reported, nothing is blocked. With RASP on, installs the RASP sink hooks before the app takes its own references to `child_process`, `fs` and the database drivers, and captures every request served by an `http` or `https` server (Express, Fastify, Koa, Nest and raw `http`), so no middleware is needed. Adding `raspExpress()` or another framework middleware as well is fine: it takes over the request with its richer view and nothing is reported twice.
 - With `SHIELD360_GUARDS`, turns guards on for every LLM call the app makes, as `init({ guards })` would, and starts the guard heartbeat. Each entry is a guard kind (`prompt_injection`, `pii`, `moderation`) and, after a colon, its action (`allow`, `warn`, `redact`, or `block`, which is `deny`). An entry it cannot read is skipped with a warning.
 - Registers the OpenTelemetry ESM loader hook (`module.register`, Node.js 18.19 / 20.6 and later), so instrumentations also patch packages the app loads with `import`. Set `SHIELD360_ESM_HOOK=off` to leave it out.
 
@@ -222,7 +222,7 @@ Limits:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `SHIELD360_RASP` | unset (off) | `monitor` or `block` turns RASP on; `off` always wins. |
+| `SHIELD360_RASP` | `monitor` under `shield360/register` (off for `init()` in code) | `monitor` reports attacks, `block` blocks them, `off` turns RASP off and always wins. |
 | `SHIELD360_ESM_HOOK` | on | `off` skips the ES module loader hook. New for the zero-code entry. |
 | `SHIELD360_GUARDS` | unset (no guards) | Guards on LLM calls, such as `prompt_injection:block,pii:warn`. |
 

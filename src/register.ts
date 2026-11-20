@@ -7,6 +7,11 @@
  *   NODE_OPTIONS="--require shield360/register" npm start
  *   node --import shield360/register app.mjs          (ESM apps)
  *
+ * RASP is on in monitor mode unless `SHIELD360_RASP` says otherwise: a
+ * code-free start protects the app, it does not only observe it. Monitor mode
+ * reports attacks and blocks nothing; `SHIELD360_RASP=block` blocks them and
+ * `SHIELD360_RASP=off` turns RASP off.
+ *
  * With RASP on (`SHIELD360_RASP=monitor|block`) the sink hooks go in before
  * the app takes references to `child_process`, `fs` and the drivers, and every
  * `http`/`https` server's requests are captured without middleware.
@@ -51,6 +56,14 @@ function parseResourceAttributes(value?: string): Record<string, string> | null 
 function nodeVersionSupported(): boolean {
   const major = Number(process.versions.node.split('.')[0]);
   return Number.isFinite(major) && major >= MIN_NODE_MAJOR;
+}
+
+/** RASP's mode for a code-free start when nothing chose one: monitor (reports, never blocks). */
+export const ZERO_CODE_DEFAULT_RASP = 'monitor';
+
+/** Turns RASP on in monitor mode when `SHIELD360_RASP` is unset or empty, so every reader of it agrees. */
+function defaultRaspToMonitor(): void {
+  if (!(process.env.SHIELD360_RASP || '').trim()) process.env.SHIELD360_RASP = ZERO_CODE_DEFAULT_RASP;
 }
 
 const isOff = (v: string | undefined) => ['off', 'false', '0', 'no'].includes((v || '').trim().toLowerCase());
@@ -100,6 +113,8 @@ function initFromEnv() {
     );
     return;
   }
+
+  defaultRaspToMonitor();
 
   try {
     // Loaded here, not at the top, so a module that fails to load is caught like any other start-up failure.

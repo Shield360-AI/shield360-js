@@ -51,6 +51,18 @@ describe('shield360/register', () => {
     });
   });
 
+  it('turns RASP on in monitor mode when SHIELD360_RASP is unset', async () => {
+    delete process.env.SHIELD360_RASP;
+    await import('../register');
+    expect(process.env.SHIELD360_RASP).toBe('monitor');
+  });
+
+  it('keeps the RASP mode the environment chose, off included', async () => {
+    process.env.SHIELD360_RASP = 'off';
+    await import('../register');
+    expect(process.env.SHIELD360_RASP).toBe('off');
+  });
+
   it('passes the guards SHIELD360_GUARDS names', async () => {
     process.env.SHIELD360_GUARDS = 'prompt_injection:block,pii:redact';
     await import('../register');

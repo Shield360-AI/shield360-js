@@ -306,6 +306,13 @@ describe('upload events and policy', () => {
     expect(uploadEvents()).toHaveLength(0);
   });
 
+  it('lets a type the route lists by name past the type checks, and nothing else', () => {
+    engine({ malicious_upload: 'block' });
+    setRemoteUploads({ routes: [{ route: '/api/avatar', allow: ['executable'] }] });
+    expect(() => captureBody(request(), { body: {}, files: multerFile('tool.bin', Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0])) })).not.toThrow();
+    expect(() => captureBody(request(), { body: {}, files: multerFile('a.jpg', Buffer.from(SHELL)) })).toThrow(expect.objectContaining({ rule: 'upload.webshell' }));
+  });
+
   it('skips a file someone marked safe (trusted hash)', () => {
     const shell = Buffer.from(SHELL);
     const sha = inspectBytes(shell).sha256 as string;

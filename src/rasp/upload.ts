@@ -32,6 +32,8 @@ const closeSync = fs.closeSync.bind(fs);
 const fstatSync = fs.fstatSync.bind(fs);
 
 export const UPLOAD_SINK = 'request.upload';
+/** The checks an explicitly allowed type gets past (README "Upload policy and deep scan", `allow`). */
+const TYPE_RULES: ReadonlySet<string> = new Set(['upload.executable', 'upload.script', 'upload.type_mismatch']);
 export const DEEP_SINK = 'upload.deep_scan';
 const PIECE = 1024 * 1024;
 const TAIL = 1024 * 1024;
@@ -153,6 +155,9 @@ export function applyUpload(u: SeenUpload): void {
     ? nameFindings(u.meta.name ?? '', v.type, u.meta.contentType)
     : [...v.findings.filter((f) => f.engine !== 'custom' || policy.deepScan.mode !== 'off'), ...policyFindings(v, policy)];
   findings.sort((a, b) => ruleRank(a.rule) - ruleRank(b.rule));
+  // A type the policy lists by name gets past the type checks (README: `allow`).
+  const listed = policy.allow.includes(v.type) || policy.allow.includes(v.kind);
+  if (listed) for (let i = findings.length - 1; i >= 0; i--) if (TYPE_RULES.has(findings[i].rule)) findings.splice(i, 1);
   if (u.ctx) addRequestUpload(u.ctx, { field: u.field, name: u.meta.name ?? '', verdict: v });
   // One event a file: the finding with the strongest decision, the contract's order breaking ties
   // (a capped rule never hides a policy finding that blocks).

@@ -9,7 +9,7 @@
  * amount of CPU per file. Rules are data; nothing here runs code.
  *
  * This file is shared: `sdk/typescript/src/rasp/upload-signatures.ts` and
- * `src/client/src/lib/security/uploads/upload-signatures.ts` are
+ * `src/client/src/lib/security/rasp/upload-signatures.ts` are
  * byte-identical (a test in each tree says so), so the platform accepts
  * exactly what the SDK runs, and the console can test a rule against a sample
  * in the browser without the sample leaving it. It imports only rule-expr.

@@ -38,6 +38,10 @@
       "types": "./dist/agents/index.d.ts",
       "default": "./dist/agents/index.js"
     },
+    "./defend": {
+      "types": "./dist/defend/index.d.ts",
+      "default": "./dist/defend/index.js"
+    },
     "./lambda": {
       "types": "./dist/lambda/index.d.ts",
       "default": "./dist/lambda/index.js"
@@ -67,6 +71,9 @@
       ],
       "workers": [
         "./dist/workers/index.d.ts"
+      ],
+      "defend": [
+        "./dist/defend/index.d.ts"
       ]
     }
   },

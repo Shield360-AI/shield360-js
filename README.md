@@ -599,6 +599,29 @@ ES modules loaded with `import` are not in `require.cache`, so an app that only 
 
 Turn it off with `runtimePackages: false` in `init`, or `SHIELD360_RUNTIME_PACKAGES=off`.
 
+## Defend (app protection) - `shield360/defend`
+
+Decide on every request whether to allow, block or challenge the caller, inside your app, from a signed
+policy built from your Shield360 rules, your blocks and automatic responses, and traps for AI agents. No network
+call per request; fails open by default.
+
+```typescript
+import { createDefend } from 'shield360/defend';
+
+// SHIELD360_CONFIG_PUBLIC_KEY pins the key the policy must be signed with (Security → RASP → Rules & setup).
+const shield = createDefend({ app: 'checkout', url: process.env.SHIELD360_URL, apiKey: process.env.SHIELD360_API_KEY });
+
+app.use(shield.express());                                   // Express / Connect
+export const POST = shield.withDefend(async (request) => …); // Next.js route handlers, any fetch handler
+const result = await shield.defend(request, { content: prompt }); // by hand: { decision, reasons, ruleIds, ttl }
+
+shield.trapHit(request, 'decoy_admin'); // blocks this client's next request here at once, everywhere within ~5 s
+```
+
+Options: `mode` (`enforce` | `monitor`), `failMode` (`open` | `closed`), `trustProxy`, `geoHeaders`, `agents`
+(an `agentVerifier` from `shield360/agents`), `classify`, `sensitiveData`, `sharedRateLimits`. `SHIELD360_DEFEND=off`
+turns it off. See [Defend](https://shield360.ai).
+
 ## Runtime protection (RASP)
 
 Off by default. When on, the SDK keeps the untrusted input of the request it is serving (query, route params, body, cookies, and the `user-agent`, `referer` and `x-forwarded-for` headers), plus the model output its LLM instrumentation sees, in memory for that request only. The contract every Shield360 SDK follows is [`sdk/rasp/README.md`](../rasp/README.md).

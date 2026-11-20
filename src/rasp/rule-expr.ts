@@ -155,7 +155,7 @@ type Inst =
 	| { op: "eol" }
 	| { op: "match" };
 
-type Net = { bytes: number[]; prefix: number };
+export type Net = { bytes: number[]; prefix: number };
 
 export type RuleNode =
 	| { k: "str"; v: string }
@@ -1251,7 +1251,7 @@ export function parseCidr(s: string): Net | null {
 	return { bytes, prefix };
 }
 
-function inCidr(ip: string, net: Net): boolean {
+export function inCidr(ip: string, net: Net): boolean {
 	const pct = ip.indexOf("%");
 	const bytes = parseIpBytes(pct === -1 ? ip : ip.slice(0, pct));
 	if (!bytes) return false;

@@ -130,7 +130,7 @@ export function jwsKid(token: string): string | undefined {
  * matches the header (any pinned key when the header names none listed), `v` 1, `app` equal to ours, `exp` in the future
  * (60 s skew).
  */
-export function verifyConfigJws(token: unknown, keys: PinnedKey[], app: string, nowS = Date.now() / 1000): VerifyResult {
+export function verifyConfigJws(token: unknown, keys: PinnedKey[], app: string, nowS = Date.now() / 1000, typ: string = JWS_TYPE): VerifyResult {
   try {
     if (typeof token !== 'string' || token.length > MAX_TOKEN) return { ok: false, reason: 'malformed' };
     const parts = token.split('.');
@@ -138,7 +138,7 @@ export function verifyConfigJws(token: unknown, keys: PinnedKey[], app: string, 
     const h = header(token);
     if (!h) return { ok: false, reason: 'malformed' };
     if (h.alg !== 'EdDSA') return { ok: false, reason: 'alg' };
-    if (h.typ !== JWS_TYPE) return { ok: false, reason: 'typ' };
+    if (h.typ !== typ) return { ok: false, reason: 'typ' };
     // Extensions the verifier does not understand must not be ignored (RFC 7515 4.1.11).
     if (h.crit !== undefined) return { ok: false, reason: 'malformed' };
     const kid = typeof h.kid === 'string' ? h.kid : undefined;
@@ -184,6 +184,14 @@ export type ConfigClientOptions = {
   fetchImpl?: typeof fetch;
   now?: () => number;
   random?: () => number;
+  /**
+   * The route polled (default `/api/rasp/config`) and the JWS `typ` its token
+   * must carry (default shield360-rasp+jws). Defend reuses this client for its
+   * signed policy (`/api/defend/policy`, shield360-defend+jws): same signing
+   * key, pinning, cache and refresh.
+   */
+  path?: string;
+  jwsType?: string;
 };
 
 type CacheFile = { config: string; tofu?: Jwk[] };
@@ -242,7 +250,7 @@ export class RaspConfigClient {
     try {
       const saved = JSON.parse(readFile(this.cacheFile(), 'utf8')) as CacheFile;
       if (!this.o.pinned.length && this.o.allowUnpinned && !this.tofu.length) this.tofu = parsePublicKeys({ keys: saved.tofu ?? [] });
-      const r = verifyConfigJws(saved.config, this.trusted(), this.o.app, this.nowMs() / 1000);
+      const r = verifyConfigJws(saved.config, this.trusted(), this.o.app, this.nowMs() / 1000, this.o.jwsType ?? JWS_TYPE);
       if (!r.ok) return false;
       this.apply(r.claims);
       return true;
@@ -292,7 +300,7 @@ export class RaspConfigClient {
       if (this.etag && this.current) headers['If-None-Match'] = this.etag;
       const init: RequestInit = { headers };
       if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') init.signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
-      const res = await send(`${this.base}/api/rasp/config?app=${encodeURIComponent(this.o.app)}`, init);
+      const res = await send(`${this.base}${this.o.path ?? '/api/rasp/config'}?app=${encodeURIComponent(this.o.app)}`, init);
       if (res.status === 304) return 'unchanged';
       if (!res.ok) return 'failed';
       const body = (await res.json()) as { config?: unknown; keys?: unknown };
@@ -307,7 +315,7 @@ export class RaspConfigClient {
           this.warn('trust_on_first_use');
         }
       }
-      const r = verifyConfigJws(token, this.trusted(), this.o.app, this.nowMs() / 1000);
+      const r = verifyConfigJws(token, this.trusted(), this.o.app, this.nowMs() / 1000, this.o.jwsType ?? JWS_TYPE);
       if (!r.ok) {
         this.warn(r.reason);
         return 'rejected';

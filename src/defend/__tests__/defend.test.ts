@@ -1,4 +1,5 @@
-import { generateKeyPairSync, sign } from 'crypto';
+import { createHmac, generateKeyPairSync, sign } from 'crypto';
+import { pathHash } from '../../rasp/edge-context';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -18,6 +19,7 @@ const policy = (over: Partial<DefendPolicy> = {}): DefendPolicy => ({
   challenge: [],
   allow: [],
   traps: { action: 'block', ttlSeconds: 900 },
+  edgeKeys: [],
   ...over,
 });
 const facts = (over: Partial<DefendFacts> = {}): DefendFacts => ({ method: 'GET', path: '/api/orders', ip: '203.0.113.7', headers: {}, ...over });
@@ -283,6 +285,56 @@ describe('createDefend', () => {
     const shield = make(s, { env: { SHIELD360_DEFEND: 'off' } });
     await shield.ready();
     expect(await shield.defend({ method: 'GET', url: '/', ip: '203.0.113.7', headers: {} })).toMatchObject({ decision: 'allow', reasons: ['off'] });
+    await shield.close();
+  });
+});
+
+describe('client type and Edge context in Defend', () => {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const jwk = { ...(publicKey.export({ format: 'jwk' }) as Record<string, string>), kid: 'k1' };
+  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const jws = (claims: Record<string, unknown>) => {
+    const head = b64({ alg: 'EdDSA', typ: DEFEND_JWS_TYPE, kid: 'k1' });
+    const body = b64(claims);
+    return `${head}.${body}.${sign(null, Buffer.from(`${head}.${body}`), privateKey).toString('base64url')}`;
+  };
+  const EDGE_KEY = Buffer.from('0123456789abcdef0123456789abcdef');
+  const claims = (over: Record<string, unknown> = {}) => ({
+    v: 1, app: 'shop', exp: Math.floor(Date.now() / 1000) + 3600, version: 'v1', listsVersion: 'l1', rules: [], deny: [],
+    edgeContext: { keys: [{ kid: '0a1b2c3d', key: EDGE_KEY.toString('base64url') }] }, ...over,
+  });
+  const make = (c: Record<string, unknown>) =>
+    createDefend({
+      app: 'shop', url: 'https://s360.test', apiKey: 'test-key', configPublicKey: jwk, env: {}, report: false,
+      cacheDir: mkdtempSync(join(tmpdir(), 'defend-ct-')),
+      fetchImpl: (async (u: string) => (String(u).includes(DEFEND_POLICY_PATH) ? new Response(JSON.stringify({ config: jws(c), keys: [jwk] })) : new Response(JSON.stringify({ version: 'l1' })))) as unknown as typeof fetch,
+    });
+  const ctxHeader = (over: Record<string, unknown>) => {
+    const now = Math.floor(Date.now() / 1000);
+    const payload = Buffer.from(JSON.stringify({ rid: `req_${Math.random().toString(36).slice(2, 12)}`, iat: now, exp: now + 30, m: 'GET', ph: pathHash('/api/x'), ct: 'unknown', risk: 0, trap: 0, fl: false, ...over })).toString('base64url');
+    return `v1.0a1b2c3d.${payload}.${createHmac('sha256', EDGE_KEY).update('s360-ctx|v1|').update(payload).digest('base64url')}`;
+  };
+
+  it('classifies by default and enforces client-type rules, with the reasons', async () => {
+    const shield = make(claims({ rules: [{ id: 'auto', action: 'challenge', clientTypes: ['unverified_automation'] }] }));
+    await shield.ready();
+    const r = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.9', headers: { 'user-agent': 'curl/8.4.0' } });
+    expect(r).toMatchObject({ decision: 'challenge', clientType: 'unverified_automation', ruleIds: ['auto'] });
+    expect(r.reasons).toContain('client:ua_automation:curl');
+    const person = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.10', headers: { 'user-agent': 'mozilla/5.0 chrome/131.0', 'sec-ch-ua': 'x', 'accept-language': 'en' } });
+    expect(person.decision).toBe('allow');
+    await shield.close();
+  });
+
+  it("blocks at once a client Edge's honeypots caught (trap level 2), and never a client Edge verified", async () => {
+    const shield = make(claims());
+    await shield.ready();
+    const caught = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.11', headers: { 'x-shield360-edge-context': ctxHeader({ ct: 'suspected_agent', trap: 2, fl: true }) } });
+    expect(caught).toMatchObject({ decision: 'deny', reasons: ['trap_hit'], clientType: 'suspected_ai_agent' });
+    const crawler = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.12', headers: { 'x-shield360-edge-context': ctxHeader({ ct: 'verified_crawler', trap: 3 }) } });
+    expect(crawler.decision).toBe('allow');
+    const forged = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.13', headers: { 'x-shield360-edge-context': ctxHeader({ trap: 3 }).slice(0, -2) + 'xx' } });
+    expect(forged.decision).toBe('allow');
     await shield.close();
   });
 });

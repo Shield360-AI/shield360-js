@@ -50,6 +50,20 @@ export function pathOf(target: string): string {
   }
 }
 
+/** The path as received, before any `?` (what Edge's context header hashes). */
+export function rawPathOf(target: string): string {
+  let p = target || '/';
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(p)) {
+    try {
+      p = new URL(p).pathname;
+    } catch {
+      p = '/';
+    }
+  }
+  const q = p.search(/[?#]/);
+  return q >= 0 ? p.slice(0, q) : p;
+}
+
 const usableIp = (v: unknown): string | undefined => {
   if (typeof v !== 'string') return undefined;
   let s = v.trim();
@@ -80,7 +94,7 @@ export function factsOf(req: unknown, call: DefendCallOptions = {}, o: FactsOpti
     usableIp(typeof r.ip === 'string' ? r.ip : undefined) ??
     forwardedIp(headers['x-forwarded-for'], o.trustProxy ?? 0) ??
     usableIp(socket?.remoteAddress);
-  const facts: DefendFacts = { method, path: pathOf(target), headers };
+  const facts: DefendFacts = { method, path: pathOf(target), rawPath: rawPathOf(target), headers };
   if (ip) facts.ip = ip;
   const country = call.country ?? (o.geoHeaders?.country ? headers[o.geoHeaders.country.toLowerCase()] : undefined);
   if (typeof country === 'string' && /^[A-Za-z]{2}$/.test(country.trim())) facts.country = country.trim().toUpperCase();

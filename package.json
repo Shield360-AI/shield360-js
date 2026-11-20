@@ -42,6 +42,10 @@
       "types": "./dist/defend/index.d.ts",
       "default": "./dist/defend/index.js"
     },
+    "./client-type": {
+      "types": "./dist/client-type/index.d.ts",
+      "default": "./dist/client-type/index.js"
+    },
     "./lambda": {
       "types": "./dist/lambda/index.d.ts",
       "default": "./dist/lambda/index.js"
@@ -74,6 +78,9 @@
       ],
       "defend": [
         "./dist/defend/index.d.ts"
+      ],
+      "client-type": [
+        "./dist/client-type/index.d.ts"
       ]
     }
   },

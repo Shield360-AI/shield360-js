@@ -4,6 +4,7 @@
  * whose condition cannot be read is left out entirely, a list entry that is
  * not an address is skipped.
  */
+import { parseEdgeKeys } from '../rasp/edge-context';
 import { parseCidr } from '../rasp/rule-expr';
 import { CLIENT_TYPES, type ClientType, type DefendPolicy, type DefendRule } from './types';
 
@@ -124,6 +125,7 @@ export function parseDefendPolicy(claims: unknown): DefendPolicy | null {
     deny: list(claims.deny),
     challenge: list(claims.challenge),
     allow: list(claims.allow),
+    edgeKeys: parseEdgeKeys(claims.edgeContext),
     traps: {
       // Absent: block. A trap hit is near certain (no person or verified agent ever reaches one), so it stops the client at once.
       action: t.action === 'monitor' || t.action === 'challenge' ? t.action : 'block',

@@ -73,6 +73,8 @@ export type DefendPolicy = {
   allow: string[];
   /** What a client marked by a trap hit gets, and for how long it stays marked. Default block: a trap is never touched by a person or a verified agent. */
   traps: { action: 'monitor' | 'block' | 'challenge'; ttlSeconds: number };
+  /** The keys Edge signs its context header with (protection triangle); empty without Edge. */
+  edgeKeys: import('../rasp/edge-context').EdgeKey[];
 };
 
 /** What Defend reads from one request. Never logged, never sent as is. */
@@ -80,6 +82,10 @@ export type DefendFacts = {
   method: string;
   /** The path, before any `?`, percent-decoded once. */
   path: string;
+  /** The path as received (not decoded): what Edge's context header hashes. */
+  rawPath?: string;
+  /** Edge's verified context for this request (protection triangle), when Edge is in front. */
+  edge?: { ct: string; trap: number; fl: boolean; risk: number };
   ip?: string;
   country?: string;
   asn?: number;
@@ -117,8 +123,8 @@ export type DefendOptions = {
   geoHeaders?: { country?: string; asn?: string };
   /** An agent verifier from `shield360/agents` (agentVerifier): passports and Web Bot Auth signatures are checked with it. */
   agents?: { check(input: unknown, opts?: { route?: string; method?: string }): Promise<AgentCheckLike> };
-  /** A client classifier: returns the client type and its reasons. Without one, only verified agents and trap hits are typed. */
-  classify?: (facts: DefendFacts, signals: { verifiedAgent: boolean; trapHit: boolean }) => ClientClassification | null | undefined;
+  /** A client classifier: returns the client type and its reasons. Default: shield360/client-type's classifyClient (with Edge's context and how widely the client roams). `false` turns classification off. */
+  classify?: false | ((facts: DefendFacts, signals: { verifiedAgent: boolean; trapHit: boolean }) => ClientClassification | null | undefined);
   /** Sensitive data in `content`: `monitor` (default) adds a reason, `block` denies, `off` skips the check. */
   sensitiveData?: 'off' | 'monitor' | 'block';
   /** Report deny, challenge and trap decisions to Shield360 (default true when url and apiKey are set). */

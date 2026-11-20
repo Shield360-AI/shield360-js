@@ -19,6 +19,8 @@ import { SuspiciousTable, suspiciousTable } from '../rasp/deception';
 import { checkContent, decide, failResult, RateTable, rateRulesFor } from './engine';
 import { DEFEND_JWS_TYPE, DEFEND_POLICY_PATH, parseDefendPolicy } from './policy';
 import { carriesAgentProof, factsOf } from './request';
+import { BreadthCounter, classifyClient } from '../client-type';
+import { CONTEXT_HEADER, REQUEST_ID_HEADER, verifyEdgeContext } from '../rasp/edge-context';
 import { DefendReporter } from './reporter';
 import type { ClientClassification, DefendCallOptions, DefendFacts, DefendMode, DefendOptions, DefendPolicy, DefendResult } from './types';
 
@@ -112,6 +114,7 @@ export function createDefend(options: DefendOptions): Defend {
   const failMode = options.failMode === 'closed' ? 'closed' : 'open';
   const sensitiveData = options.sensitiveData ?? 'monitor';
   const rates = new RateTable();
+  const breadth = new BreadthCounter();
   const marks = new SuspiciousTable(10_000, now);
   const factsOpts = { trustProxy: options.trustProxy, geoHeaders: options.geoHeaders };
   let current: DefendPolicy | null = null;
@@ -258,11 +261,21 @@ export function createDefend(options: DefendOptions): Defend {
           agent = undefined;
         }
       }
-      const trapHit = trapHitFor(facts.ip);
+      // Protection triangle: what Edge, in front, says about this client (verified, never trusted unverified).
+      const ctxValue = facts.headers[CONTEXT_HEADER];
+      if (ctxValue && policy?.edgeKeys.length) {
+        const edge = verifyEdgeContext(policy.edgeKeys, ctxValue, { method: facts.method, path: facts.rawPath ?? facts.path, requestId: facts.headers[REQUEST_ID_HEADER] || undefined }, now());
+        if (edge) facts.edge = { ct: edge.ct, trap: edge.trap, fl: edge.fl, risk: edge.risk };
+      }
+      // A client Edge's honeypots already caught following a trail (level 2+) is a trap hit here too: blocked at once.
+      const edgeVerified = facts.edge?.ct === 'verified_agent' || facts.edge?.ct === 'verified_crawler';
+      const trapHit = !edgeVerified && (trapHitFor(facts.ip) || (facts.edge?.trap ?? 0) >= 2);
       let classification: ClientClassification | null | undefined;
-      if (options.classify && !agent?.verified && !trapHit) {
+      if (options.classify !== false && !agent?.verified && !trapHit) {
         try {
-          classification = options.classify(facts, { verifiedAgent: false, trapHit: false });
+          classification = options.classify
+            ? options.classify(facts, { verifiedAgent: false, trapHit: false })
+            : classifyClient(facts.headers, { edge: facts.edge, breadth: facts.ip ? breadth.see(facts.ip, facts.path, now()) : undefined });
         } catch {
           classification = undefined;
         }

@@ -70,16 +70,17 @@ def drop(b: dict, *keys: str) -> dict:
 contexts = []
 
 
-def case(name: str, value: str, method: str = "POST", path: str = "/api/orders", request_id=None, now: int = NOW, replay=None) -> None:
+def case(name: str, value: str, method: str = "POST", path: str = "/api/orders", request_id="req_0123456789", now: int = NOW, replay=None) -> None:
     contexts.append({"name": name, "header": value, "method": method, "path": path, "requestId": request_id, "now": now, "replayGroup": replay})
 
 
 full = body(waf=["sql_injection", "xss"], tp="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
 case("valid, every field", header(full))
-case("valid, the required fields only (fl absent reads false)", header(drop(body(rid="req_minimal_01"), "fl")))
-case("valid, fl false", header(body(rid="req_flfalse_01", fl=False)))
-case("valid, signed with the rotation key", header(body(rid="req_rotation_1"), ROTATION, "9f8e7d6c"))
-case("valid, request id header matches", header(body()), request_id="req_0123456789")
+case("valid, the required fields only (fl absent reads false)", header(drop(body(rid="req_minimal_01"), "fl")), request_id="req_minimal_01")
+case("valid, fl false", header(body(rid="req_flfalse_01", fl=False)), request_id="req_flfalse_01")
+case("valid, signed with the rotation key", header(body(rid="req_rotation_1"), ROTATION, "9f8e7d6c"), request_id="req_rotation_1")
+case("valid, X-Request-Id matches", header(body()), request_id="req_0123456789")
+case("no X-Request-Id: the context is not trusted", header(body()), request_id=None)
 case("valid, exp 5 s in the past (skew)", header(body()), now=NOW + 35)
 case("valid, iat 5 s in the future (skew)", header(body(iat=NOW + 5, exp=NOW + 30)))
 case("valid, empty waf list", header(body(waf=[])))
@@ -98,7 +99,7 @@ case("wrong method", header(body()), method="GET")
 case("method case differs", header(body(m="post")))
 case("wrong path hash", header(body()), path="/api/admin")
 case("path with a query is not the path", header(body()), path="/api/orders?x=1")
-case("rid differs from X-Shield360-Request-Id", header(body()), request_id="req_other_1234")
+case("rid differs from X-Request-Id", header(body()), request_id="req_other_1234")
 case("rid too short", header(body(rid="abc")))
 case("rid with a bad character", header(body(rid="req_0123456789!")))
 case("extra key in the payload", header(body(extra=1)))
@@ -119,9 +120,9 @@ case("payload not JSON (signed)", signed(b64(b"not json")))
 case("payload a JSON list (signed)", signed(b64(b'["rid"]')))
 case("empty header", "")
 rep = header(body(rid="req_replay_0001"))
-case("replay: first use", rep, replay="r1")
-case("replay: second use of the same rid", rep, replay="r1")
-case("replay: another rid in the same cache", header(body(rid="req_replay_0002")), replay="r1")
+case("replay: first use", rep, request_id="req_replay_0001", replay="r1")
+case("replay: second use of the same rid", rep, request_id="req_replay_0001", replay="r1")
+case("replay: another rid in the same cache", header(body(rid="req_replay_0002")), request_id="req_replay_0002", replay="r1")
 
 caches = {}
 for c in contexts:
@@ -195,7 +196,7 @@ corpus = {
         "sdk/rasp/scripts/gen-triangle.py from the Python SDK; do not edit by hand. key/rotationKey: the spec key "
         "(32 ASCII bytes 0123456789abcdef0123456789abcdef, kid 0a1b2c3d) and a second key; edgeContext is the signed "
         "config field with both. parseKeys: a config value and the kids accepted. context: verify the header with "
-        "edgeContext's keys for method, path, requestId (null: the app saw no X-Shield360-Request-Id) at now (unix "
+        "edgeContext's keys for method, path, requestId (the X-Request-Id the app saw, which must equal rid; null: the app saw none, and the context is refused) at now (unix "
         "seconds); expect is null or the context (fl always present, a bool). Cases with no replayGroup use no replay "
         "cache; cases sharing a replayGroup share one fresh cache, in order. verdict: sign with edgeContext's keys "
         "(the first signs); expect is the header or null. suspect: a context and whether Edge marked the client. "

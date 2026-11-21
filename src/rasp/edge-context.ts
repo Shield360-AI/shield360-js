@@ -18,7 +18,9 @@ import { createHash, createHmac, timingSafeEqual } from 'crypto';
 
 export const CONTEXT_HEADER = 'x-shield360-edge-context';
 export const VERDICT_HEADER = 'X-Shield360-Verdict';
-export const REQUEST_ID_HEADER = 'x-shield360-request-id';
+// Edge's own request id, which Edge always sends upstream; the signed
+// context's rid must equal it (a context lifted onto another request is refused).
+export const REQUEST_ID_HEADER = 'x-request-id';
 
 const CONTEXT_TTL_S = 30;
 const SKEW_S = 5;
@@ -110,8 +112,9 @@ export class ReplayCache {
 const replay = new ReplayCache();
 
 /**
- * Verifies the context header for this request (method, path and, when the
- * app sees it, Edge's request id). Null when absent or not valid.
+ * Verifies the context header for this request: method, path and Edge's
+ * request id (X-Request-Id), which must be present and equal the signed rid.
+ * Null when absent or not valid.
  */
 export function verifyEdgeContext(keys: EdgeKey[], value: unknown, req: { method: string; path: string; requestId?: string }, nowMs = Date.now(), cache: ReplayCache | null = replay): EdgeContext | null {
   try {
@@ -121,7 +124,8 @@ export function verifyEdgeContext(keys: EdgeKey[], value: unknown, req: { method
     const now = Math.floor(nowMs / 1000);
     if (typeof c.rid !== 'string' || !RID.test(c.rid) || typeof c.ct !== 'string' || !CLIENTS.has(c.ct)) return null;
     if (typeof c.iat !== 'number' || typeof c.exp !== 'number' || c.iat > now + SKEW_S || c.exp < now - SKEW_S || c.exp - c.iat > CONTEXT_TTL_S) return null;
-    if (c.m !== req.method || c.ph !== pathHash(req.path) || (req.requestId && req.requestId !== c.rid)) return null;
+    // Bound to this request: method, path and Edge's X-Request-Id, which must be present.
+    if (c.m !== req.method || c.ph !== pathHash(req.path) || typeof req.requestId !== 'string' || req.requestId !== c.rid) return null;
     if (typeof c.risk !== 'number' || c.risk < 0 || c.risk > 100 || typeof c.trap !== 'number' || c.trap < 0 || c.trap > 4) return null;
     if (c.waf !== undefined && (!Array.isArray(c.waf) || c.waf.length > 16 || !c.waf.every((w) => typeof w === 'string' && CAT.test(w)))) return null;
     if (cache && !cache.first(`c:${c.rid}`, (c.exp + SKEW_S) * 1000, nowMs)) return null;

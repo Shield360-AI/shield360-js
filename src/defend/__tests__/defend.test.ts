@@ -310,6 +310,7 @@ describe('client type and Edge context in Defend', () => {
       cacheDir: mkdtempSync(join(tmpdir(), 'defend-ct-')),
       fetchImpl: (async (u: string) => (String(u).includes(DEFEND_POLICY_PATH) ? new Response(JSON.stringify({ config: jws(c), keys: [jwk] })) : new Response(JSON.stringify({ version: 'l1' })))) as unknown as typeof fetch,
     });
+  const ctxRid = (h: string) => JSON.parse(Buffer.from(h.split('.')[2], 'base64url').toString()).rid as string;
   const ctxHeader = (over: Record<string, unknown>) => {
     const now = Math.floor(Date.now() / 1000);
     const payload = Buffer.from(JSON.stringify({ rid: `req_${Math.random().toString(36).slice(2, 12)}`, iat: now, exp: now + 30, m: 'GET', ph: pathHash('/api/x'), ct: 'unknown', risk: 0, trap: 0, fl: false, ...over })).toString('base64url');
@@ -330,12 +331,18 @@ describe('client type and Edge context in Defend', () => {
   it("blocks at once a client Edge's honeypots caught (trap level 2), and never a client Edge verified", async () => {
     const shield = make(claims());
     await shield.ready();
-    const caught = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.11', headers: { 'x-shield360-edge-context': ctxHeader({ ct: 'suspected_agent', trap: 2, fl: true }) } });
+    const edge = (h: string) => ({ 'x-shield360-edge-context': h, 'x-request-id': ctxRid(h) });
+    const caught = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.11', headers: edge(ctxHeader({ ct: 'suspected_agent', trap: 2, fl: true })) });
     expect(caught).toMatchObject({ decision: 'deny', reasons: ['trap_hit'], clientType: 'suspected_ai_agent' });
-    const crawler = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.12', headers: { 'x-shield360-edge-context': ctxHeader({ ct: 'verified_crawler', trap: 3 }) } });
+    const crawler = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.12', headers: edge(ctxHeader({ ct: 'verified_crawler', trap: 3 })) });
     expect(crawler.decision).toBe('allow');
     const forged = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.13', headers: { 'x-shield360-edge-context': ctxHeader({ trap: 3 }).slice(0, -2) + 'xx' } });
     expect(forged.decision).toBe('allow');
+    // Without Edge's X-Request-Id, or with another request's, the context is not trusted.
+    const noId = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.14', headers: { 'x-shield360-edge-context': ctxHeader({ ct: 'suspected_agent', trap: 2, fl: true }) } });
+    expect(noId.decision).toBe('allow');
+    const otherId = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.15', headers: { 'x-shield360-edge-context': ctxHeader({ ct: 'suspected_agent', trap: 2, fl: true }), 'x-request-id': 'req_another_one' } });
+    expect(otherId.decision).toBe('allow');
     await shield.close();
   });
 });

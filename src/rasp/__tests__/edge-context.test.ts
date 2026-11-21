@@ -35,6 +35,8 @@ describe('context header', () => {
     expect(verifyEdgeContext(keys, contextHeader(), { ...req, path: '/api/admin' }, NOW, null)).toBeNull();
     expect(verifyEdgeContext(keys, contextHeader(), { ...req, method: 'GET' }, NOW, null)).toBeNull();
     expect(verifyEdgeContext(keys, contextHeader(), { ...req, requestId: 'req_someone_else' }, NOW, null)).toBeNull();
+    // Edge always sends X-Request-Id: a context without it is never trusted (lifted onto another request).
+    expect(verifyEdgeContext(keys, contextHeader(), { ...req, requestId: undefined }, NOW, null)).toBeNull();
     expect(verifyEdgeContext(keys, contextHeader(), req, NOW + 60_000, null)).toBeNull();
     expect(verifyEdgeContext(keys, contextHeader({}, Buffer.from('f'.repeat(32))), req, NOW, null)).toBeNull();
     expect(verifyEdgeContext(keys, contextHeader({}, KEY, 'deadbeef'), req, NOW, null)).toBeNull();
@@ -99,7 +101,7 @@ describe('RASP with Edge in front', () => {
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
     const { port } = server.address() as AddressInfo;
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/api/orders`, { method: 'POST', headers: { 'x-shield360-edge-context': header, 'x-shield360-request-id': rid, 'x-request-id': rid } });
+      const res = await fetch(`http://127.0.0.1:${port}/api/orders`, { method: 'POST', headers: { 'x-shield360-edge-context': header, 'x-request-id': rid } });
       expect(res.status).toBe(403);
       const verdict = res.headers.get(VERDICT_HEADER);
       expect(verifyVerdict(keys, verdict as string, rid)).toMatchObject({ act: 'block', cat: 'sql_injection', src: 'rasp' });
@@ -119,7 +121,7 @@ describe('RASP with Edge in front', () => {
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
     const { port } = server.address() as AddressInfo;
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/checkout`, { method: shape.method, headers: { ...(shape.headers as Record<string, string>), 'x-shield360-edge-context': header, 'x-shield360-request-id': rid, 'x-request-id': rid } });
+      const res = await fetch(`http://127.0.0.1:${port}/checkout`, { method: shape.method, headers: { ...(shape.headers as Record<string, string>), 'x-shield360-edge-context': header, 'x-request-id': rid } });
       expect(res.status).toBe(403);
       expect(verifyVerdict(keys, res.headers.get(VERDICT_HEADER) as string, rid)).toMatchObject({ act: 'block', cat: 'virtual_patch' });
     } finally {
@@ -129,7 +131,7 @@ describe('RASP with Edge in front', () => {
 
   describe('Next.js route handlers (withRasp)', () => {
     const request = (rid: string, header: string, method = 'POST', path = '/api/orders', init: RequestInit = {}) =>
-      new Request(`http://localhost${path}`, { method, ...init, headers: { 'x-shield360-edge-context': header, 'x-shield360-request-id': rid, 'x-request-id': rid, ...((init.headers as Record<string, string>) ?? {}) } });
+      new Request(`http://localhost${path}`, { method, ...init, headers: { 'x-shield360-edge-context': header, 'x-request-id': rid, ...((init.headers as Record<string, string>) ?? {}) } });
 
     it('tightens for a client Edge flagged and answers the 403 with a signed verdict', async () => {
       const { rid, header } = live();

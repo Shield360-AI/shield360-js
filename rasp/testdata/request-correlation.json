@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "comment": "  python3 sdk/rasp/scripts/gen-request-correlation.py  requestId: a header value and the id the SDK uses (null: not id-shaped: letters, digits, `.`, `_`, `-`, 8 to 128 characters, nothing else, no trailing newline). traceparent: a header value and its trace id (null: malformed or the all-zero trace id). resolve: what a request's log records carry: Edge's verified context id (cross-checked against X-Request-Id, Edge's own id), else an id-shaped X-Request-Id; the trace id attribute is set only when no span is active.",
+  "requestId": [
+    {
+      "name": "Edge's hex id",
+      "value": "3f2a9c0d1e4b5a6978c0d1e2f3a4b5c6",
+      "expect": "3f2a9c0d1e4b5a6978c0d1e2f3a4b5c6"
+    },
+    {
+      "name": "uuid",
+      "value": "123e4567-e89b-12d3-a456-426614174000",
+      "expect": "123e4567-e89b-12d3-a456-426614174000"
+    },
+    {
+      "name": "dots and underscores",
+      "value": "req_01.abc-XYZ",
+      "expect": "req_01.abc-XYZ"
+    },
+    {
+      "name": "exactly 8",
+      "value": "abcdefgh",
+      "expect": "abcdefgh"
+    },
+    {
+      "name": "exactly 128",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expect": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "name": "too short",
+      "value": "short",
+      "expect": null
+    },
+    {
+      "name": "too long",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expect": null
+    },
+    {
+      "name": "space",
+      "value": "has space in it",
+      "expect": null
+    },
+    {
+      "name": "markup",
+      "value": "<script>alert(1)</script>",
+      "expect": null
+    },
+    {
+      "name": "trailing newline",
+      "value": "abcdefgh\n",
+      "expect": null
+    },
+    {
+      "name": "colon",
+      "value": "abc:defgh",
+      "expect": null
+    },
+    {
+      "name": "non-ASCII letter",
+      "value": "abcdéfghij",
+      "expect": null
+    },
+    {
+      "name": "empty",
+      "value": "",
+      "expect": null
+    },
+    {
+      "name": "absent",
+      "value": null,
+      "expect": null
+    }
+  ],
+  "traceparent": [
+    {
+      "name": "valid",
+      "value": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+      "expect": "0af7651916cd43dd8448eb211c80319c"
+    },
+    {
+      "name": "unsampled",
+      "value": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00",
+      "expect": "0af7651916cd43dd8448eb211c80319c"
+    },
+    {
+      "name": "all-zero trace id",
+      "value": "00-00000000000000000000000000000000-b7ad6b7169203331-01",
+      "expect": null
+    },
+    {
+      "name": "upper case",
+      "value": "00-0AF7651916CD43DD8448EB211C80319C-B7AD6B7169203331-01",
+      "expect": null
+    },
+    {
+      "name": "short trace id",
+      "value": "00-0af7651916cd43dd8448eb211c80319-b7ad6b7169203331-01",
+      "expect": null
+    },
+    {
+      "name": "trailing newline",
+      "value": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\n",
+      "expect": null
+    },
+    {
+      "name": "junk",
+      "value": "junk",
+      "expect": null
+    },
+    {
+      "name": "absent",
+      "value": null,
+      "expect": null
+    }
+  ],
+  "resolve": [
+    {
+      "name": "X-Request-Id and traceparent, no span",
+      "xRequestId": "3f2a9c0d1e4b5a6978c0d1e2f3a4b5c6",
+      "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+      "edgeRid": null,
+      "spanActive": false,
+      "expect": {
+        "shield360.edge.request_id": "3f2a9c0d1e4b5a6978c0d1e2f3a4b5c6",
+        "shield360.edge.trace_id": "0af7651916cd43dd8448eb211c80319c"
+      }
+    },
+    {
+      "name": "a span carries the trace",
+      "xRequestId": "3f2a9c0d1e4b5a6978c0d1e2f3a4b5c6",
+      "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+      "edgeRid": null,
+      "spanActive": true,
+      "expect": {
+        "shield360.edge.request_id": "3f2a9c0d1e4b5a6978c0d1e2f3a4b5c6"
+      }
+    },
+    {
+      "name": "Edge's verified context (Edge sends the same id in X-Request-Id)",
+      "xRequestId": "req_0123456789",
+      "traceparent": null,
+      "edgeRid": "req_0123456789",
+      "spanActive": false,
+      "expect": {
+        "shield360.edge.request_id": "req_0123456789"
+      }
+    },
+    {
+      "name": "Edge's verified context alone",
+      "xRequestId": null,
+      "traceparent": null,
+      "edgeRid": "req_0123456789",
+      "spanActive": false,
+      "expect": {
+        "shield360.edge.request_id": "req_0123456789"
+      }
+    },
+    {
+      "name": "not id-shaped: nothing",
+      "xRequestId": "<script>",
+      "traceparent": "junk",
+      "edgeRid": null,
+      "spanActive": false,
+      "expect": {}
+    }
+  ]
+}

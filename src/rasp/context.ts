@@ -38,6 +38,9 @@ export type RaspContext = {
   deception?: boolean;
   /** SHIELD: protection triangle — Edge's verified context for this request (edge-context.ts). */
   edge?: import('./edge-context').EdgeContext;
+  /** SHIELD: request correlation — the request's `X-Request-Id` (Edge's id behind Edge) and the trace id of its `traceparent` (otel/edge-request.ts). */
+  requestId?: string;
+  traceId?: string;
   /** SHIELD: protection triangle — sets a response header while the headers are not sent (the verdict for Edge). */
   setHeader?: (name: string, value: string) => void;
   verdictSent?: boolean;

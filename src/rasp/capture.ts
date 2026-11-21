@@ -5,6 +5,8 @@
  */
 import { currentContext, newContext, storage, type RaspContext } from './context';
 import { CONTEXT_HEADER, REQUEST_ID_HEADER, verifyEdgeContext } from './edge-context';
+import { trace } from '@opentelemetry/api';
+import { REQUEST_ID_HEADER as EDGE_REQUEST_ID_HEADER, requestIdOf, tagServerSpan, traceIdOf } from '../otel/edge-request';
 import { detectUpload } from './detect';
 import { customFinding, matchRequestRules, requestSubject } from './custom-rules';
 import { applicationName, check, customRules, handleFinding, modeFor, remoteConfig, virtualPatches } from './engine';
@@ -163,6 +165,10 @@ export function captureRequest(shape: RequestShape): RaspContext {
     const edge = verifyEdgeContext(keys, edgeValue, { method: shape.method, path, requestId: header(shape.headers, REQUEST_ID_HEADER) || undefined });
     if (edge) ctx.edge = edge;
   }
+  // SHIELD: request correlation — Edge's request id and the trace for the app's log lines and server span (otel/edge-request.ts).
+  ctx.requestId = ctx.edge?.rid ?? requestIdOf(shape.headers[EDGE_REQUEST_ID_HEADER]);
+  ctx.traceId = traceIdOf(header(shape.headers, 'traceparent'));
+  tagServerSpan(trace.getActiveSpan(), ctx.requestId);
   return ctx;
 }
 

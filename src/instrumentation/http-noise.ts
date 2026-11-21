@@ -10,6 +10,8 @@
  *     which are not the app's work.
  */
 
+import { httpRequestHook } from '../otel/edge-request';
+
 const HEALTH_PATHS = new Set(['/health', '/healthz', '/healthcheck', '/ready', '/readyz', '/live', '/livez', '/ping', '/status', '/metrics', '/api/health']);
 const PROBE_AGENTS = /^(kube-probe|ELB-HealthChecker|GoogleHC|Consul Health Check|Amazon-Route53-Health-Check-Service|UptimeRobot)/i;
 
@@ -47,6 +49,8 @@ export function maskKafkaKey(span: { setAttribute(key: string, value: string): u
 export function communityOptions(name: string): Record<string, unknown> | undefined {
   if (name === 'http') {
     return {
+      // SHIELD: request correlation — Edge's request id on the server span (otel/edge-request.ts).
+      requestHook: httpRequestHook,
       ignoreIncomingRequestHook: (req: { url?: string; headers?: Record<string, string | string[] | undefined> }) => {
         try {
           return isHealthProbe(req.url, req.headers?.['user-agent']);

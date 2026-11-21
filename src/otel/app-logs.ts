@@ -27,6 +27,7 @@ import { LogAttributes, SeverityNumber } from '@opentelemetry/api-logs';
 import { maskText, maskValue } from '../masking';
 import { CodeLocationSpanProcessor, ATTR_CODE_FILE_PATH, ATTR_CODE_FUNCTION_NAME, ATTR_CODE_LINE_NUMBER } from './code-location';
 import { parseBoolEnv } from './utils';
+import { currentEdgeIds, EDGE_REQUEST_ID_ATTR, EDGE_TRACE_ID_ATTR } from './edge-request';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
@@ -183,6 +184,11 @@ function emit(scope: string, level: LogLevel, allow: () => boolean, message: str
     }
     const attrs: LogAttributes = {};
     for (const [key, value] of Object.entries(given)) attrs[key] = maskAttribute(key, value) as LogAttributes[string];
+    // SHIELD: request correlation — Edge's request id, and the trace id when no span carries it
+    // (edge-request.ts). Both are id-shaped by then and are not secrets, so they are not masked.
+    const ids = currentEdgeIds();
+    if (ids.requestId) attrs[EDGE_REQUEST_ID_ATTR] = ids.requestId;
+    if (ids.traceId && !ids.spanActive) attrs[EDGE_TRACE_ID_ATTR] = ids.traceId;
     // No context is passed: the logs SDK takes the active one, which links the
     // record to the active span's trace and span ids.
     current.getLogger(scope).emit({

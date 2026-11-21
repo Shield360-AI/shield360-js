@@ -123,11 +123,19 @@ const contentTypeOf = (h: Record<string, unknown> | undefined): string | undefin
  * Starts a request context. Returns the context, `blocked` with the error
  * when a virtual patch blocks, or undefined when capture failed (fail open).
  * `noBody` says the request has no body at all (its body is known, empty).
+ * `setHeader` sets a response header while the headers are not out (the verdict for Edge).
  */
-function begin(make: () => RaspContext, body: () => BodyShape | undefined, noBody?: () => boolean): { ctx?: RaspContext; blocked?: RaspBlockedError } {
+function begin(
+  make: () => RaspContext,
+  body: () => BodyShape | undefined,
+  noBody?: () => boolean,
+  setHeader?: (name: string, value: string) => void,
+): { ctx?: RaspContext; blocked?: RaspBlockedError } {
   let ctx: RaspContext | undefined;
   try {
     ctx = make();
+    // SHIELD: protection triangle — set before the virtual patches run, so a request they block still tells Edge.
+    ctx.setHeader = setHeader;
     const b = body();
     if (b && b.body !== undefined && b.body !== null) captureBody(ctx, b);
     else {
@@ -251,10 +259,10 @@ export function raspExpress(options: RaspExpressOptions = {}) {
         return req.body === undefined && files === undefined ? undefined : { body: req.body ?? {}, contentType: contentTypeOf(req.headers), files };
       },
       () => bodyAbsent(req.headers, req.httpVersionMajor),
+      nodeHeaderSetter(res),
     );
     if (r.blocked) return sendBlocked(res, r.blocked);
     if (!r.ctx) return next();
-    r.ctx.setHeader = nodeHeaderSetter(res);
     storage.run(r.ctx, () => next());
   };
 }
@@ -356,11 +364,11 @@ export function raspFastify(fastify: FastifyLike, _opts: unknown, done: Next): v
       // Content-Length: 0 carries none whatever the content type, and without a content type
       // it parses nothing when there is neither a length nor chunks.
       () => fastifyNoBody(request.method, request.headers),
+      nodeHeaderSetter((reply as { raw?: ServerResponse }).raw),
     );
     if (r.blocked) return fastifyBlocked(reply, r.blocked);
     if (!r.ctx) return next();
     r.ctx.late = undefined;
-    r.ctx.setHeader = nodeHeaderSetter((reply as { raw?: ServerResponse }).raw);
     request[FASTIFY_CTX] = r.ctx;
     storage.run(r.ctx, () => next());
   });
@@ -438,13 +446,13 @@ export function raspKoa() {
         }),
       () => (k.request?.body === undefined ? undefined : { body: k.request.body, contentType: contentTypeOf(headers) }),
       () => bodyAbsent(headers, k.req?.httpVersionMajor),
+      nodeHeaderSetter((k as { res?: ServerResponse }).res),
     );
     if (r.blocked) return koaBlocked(k, r.blocked);
     if (!r.ctx) {
       await next();
       return;
     }
-    r.ctx.setHeader = nodeHeaderSetter((k as { res?: ServerResponse }).res);
     try {
       await storage.run(r.ctx, () => next());
     } catch (e) {
@@ -475,10 +483,10 @@ export function raspHttp<H extends HttpHandler>(handler: H): H {
       () => captureRequest({ framework: 'http', method: req.method || 'GET', url: req.url || '/', headers: req.headers, ip: ipOf(undefined, req) }),
       () => (withBody.body === undefined ? undefined : { body: withBody.body, contentType: contentTypeOf(req.headers) }),
       () => bodyAbsent(req.headers, req.httpVersionMajor),
+      nodeHeaderSetter(res),
     );
     if (r.blocked) return sendBlocked(res, r.blocked);
     if (!r.ctx) return handler.call(this, req, res);
-    r.ctx.setHeader = nodeHeaderSetter(res);
     return storage.run(r.ctx, () => {
       try {
         const out = handler.call(this, req, res) as unknown;
@@ -555,11 +563,35 @@ async function readCapped(req: Request, max: number): Promise<string | undefined
 type RouteHandler<C> = (request: Request, context: C) => Response | Promise<Response>;
 
 /**
+ * SHIELD: protection triangle — the headers RASP set for this request (the
+ * verdict for Edge) on the route handler's Response. A Response with
+ * immutable headers (`Response.redirect`, a proxied `fetch`) is copied.
+ */
+function withResponseHeaders(res: Response, headers: [string, string][]): Response {
+  if (!headers.length || !res || typeof res !== 'object' || !res.headers) return res;
+  try {
+    for (const [k, v] of headers) res.headers.set(k, v);
+    return res;
+  } catch {
+    try {
+      const h = new Headers(res.headers);
+      for (const [k, v] of headers) h.set(k, v);
+      return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+    } catch {
+      return res;
+    }
+  }
+}
+
+/**
  * Wraps a Next.js App Router route handler (Node.js runtime):
  *
  *   export const POST = withRasp(async (request) => { ... });
  *
  * The body is read from a clone (up to 1 MiB), so the handler can still read it.
+ * Behind Shield360 Edge, Edge's signed context is verified and the first
+ * detection is answered with a signed `X-Shield360-Verdict` header on the
+ * Response (the handler's, or the 403).
  */
 export function withRasp<C = unknown>(handler: RouteHandler<C>): RouteHandler<C> {
   return async function shield360Rasp(request: Request, context: C): Promise<Response> {
@@ -576,6 +608,8 @@ export function withRasp<C = unknown>(handler: RouteHandler<C>): RouteHandler<C>
     if (d.notFound) return new Response(null, { status: 404 });
     if (d.blocked) return blockedResponse(d.blocked);
     let ctx: RaspContext | undefined;
+    const pending: [string, string][] = [];
+    const reply = (res: Response): Response => withResponseHeaders(res, pending);
     try {
       const headers: Record<string, string> = {};
       request.headers.forEach((v, k) => {
@@ -589,6 +623,9 @@ export function withRasp<C = unknown>(handler: RouteHandler<C>): RouteHandler<C>
         params = undefined;
       }
       ctx = captureRequest({ framework: 'nextjs', method: request.method, url: url.pathname + url.search, headers, params });
+      ctx.setHeader = (name, value) => {
+        pending.push([name, value]);
+      };
       runVirtualPatches(ctx);
       if (!request.body) {
         // No body at all (a GET, an empty POST): the body is known and empty.
@@ -602,14 +639,14 @@ export function withRasp<C = unknown>(handler: RouteHandler<C>): RouteHandler<C>
         if ((headers['content-type'] || '').toLowerCase().includes('multipart/form-data')) await inspectRequestForm(ctx, request);
       }
     } catch (e) {
-      if (e instanceof RaspBlockedError) return blockedResponse(e);
+      if (e instanceof RaspBlockedError) return reply(blockedResponse(e));
       ctx = undefined;
     }
     if (!ctx) return handler(request, context);
     try {
-      return await storage.run(ctx, () => handler(request, context));
+      return reply(await storage.run(ctx, () => handler(request, context)));
     } catch (e) {
-      if (e instanceof RaspBlockedError) return blockedResponse(e);
+      if (e instanceof RaspBlockedError) return reply(blockedResponse(e));
       throw e;
     }
   };

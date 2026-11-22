@@ -26,52 +26,52 @@ This project proudly follows and maintains the [Semantic Conventions](https://gi
 
 | LLMs                                                                                        |
 | ------------------------------------------------------------------------------------------- |
-| [✅ OpenAI](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/openai.mdx)                             |
-| [✅ Anthropic](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/anthropic.mdx)                       |
-| [✅ Cohere](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/cohere.mdx)                             |
-| [✅ Groq](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/groq.mdx)                                 |
-| [✅ Mistral](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/mistral.mdx)                           |
-| [✅ Google AI Studio](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/google-ai-studio.mdx)         |
-| [✅ Google Vertex AI](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/vertexai.mdx) *(via `@google-cloud/vertexai`)* |
-| [✅ Together AI](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/together.mdx)                      |
-| [✅ Ollama](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/ollama.mdx)                             |
-| [✅ AWS Bedrock](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/bedrock.mdx)                        |
-| [✅ Hugging Face](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/huggingface.mdx) *(Inference API + local Transformers.js)* |
-| [✅ Replicate](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/replicate.mdx)                      |
-| [✅ Azure OpenAI](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/azure-openai.mdx) *(via OpenAI SDK)* |
+| [✅ OpenAI](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/openai.mdx)                             |
+| [✅ Anthropic](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/anthropic.mdx)                       |
+| [✅ Cohere](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/cohere.mdx)                             |
+| [✅ Groq](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/groq.mdx)                                 |
+| [✅ Mistral](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/mistral.mdx)                           |
+| [✅ Google AI Studio](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/google-ai-studio.mdx)         |
+| [✅ Google Vertex AI](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/vertexai.mdx) *(via `@google-cloud/vertexai`)* |
+| [✅ Together AI](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/together.mdx)                      |
+| [✅ Ollama](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/ollama.mdx)                             |
+| [✅ AWS Bedrock](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/bedrock.mdx)                        |
+| [✅ Hugging Face](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/huggingface.mdx) *(Inference API + local Transformers.js)* |
+| [✅ Replicate](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/replicate.mdx)                      |
+| [✅ Azure OpenAI](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/azure-openai.mdx) *(via OpenAI SDK)* |
 
 | Audio / Speech                                                                              |
 | ------------------------------------------------------------------------------------------- |
-| [✅ ElevenLabs](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/elevenlabs.mdx)                   |
+| [✅ ElevenLabs](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/elevenlabs.mdx)                   |
 
 | Vector Databases                                                                            |
 | ------------------------------------------------------------------------------------------- |
-| [✅ Chroma](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/chromadb.mdx)                           |
-| [✅ Pinecone](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/pinecone.mdx)                         |
-| [✅ Qdrant](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/qdrant.mdx)                             |
-| [✅ Milvus](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/milvus.mdx)                             |
+| [✅ Chroma](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/chromadb.mdx)                           |
+| [✅ Pinecone](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/pinecone.mdx)                         |
+| [✅ Qdrant](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/qdrant.mdx)                             |
+| [✅ Milvus](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/milvus.mdx)                             |
 
 | Frameworks                                                                                  |
 | ------------------------------------------------------------------------------------------- |
-| [✅ LangChain](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/langchain.mdx)                       |
-| [✅ LlamaIndex](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/llama-index.mdx)                    |
-| [✅ Vercel AI SDK](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/integrations/vercel-ai.mdx)                   |
+| [✅ LangChain](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/langchain.mdx)                       |
+| [✅ LlamaIndex](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/llama-index.mdx)                    |
+| [✅ Vercel AI SDK](https://github.com/Shield360-AI/shield360-js/blob/main/docs/integrations/vercel-ai.mdx)                   |
 
 ## Supported Destinations
 
-- [✅ OpenTelemetry Collector](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/otelcol.mdx)
-- [✅ Prometheus + Tempo](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/prometheus-tempo.mdx)
-- [✅ Prometheus + Jaeger](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/prometheus-jaeger.mdx)
-- [✅ Grafana Cloud](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/grafanacloud.mdx)
-- [✅ New Relic](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/new-relic.mdx)
-- [✅ Elastic](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/elastic.mdx)
-- [✅ HyperDX](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/hyperdx.mdx)
-- [✅ DataDog](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/datadog.mdx)
-- [✅ SigNoz](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/signoz.mdx)
-- [✅ OneUptime](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/oneuptime.mdx)
-- [✅ Dynatrace](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/dynatrace.mdx)
-- [✅ OpenObserve](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/openobserve.mdx)
-- [✅ Highlight.io](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/highlight.mdx)
+- [✅ OpenTelemetry Collector](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/otelcol.mdx)
+- [✅ Prometheus + Tempo](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/prometheus-tempo.mdx)
+- [✅ Prometheus + Jaeger](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/prometheus-jaeger.mdx)
+- [✅ Grafana Cloud](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/grafanacloud.mdx)
+- [✅ New Relic](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/new-relic.mdx)
+- [✅ Elastic](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/elastic.mdx)
+- [✅ HyperDX](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/hyperdx.mdx)
+- [✅ DataDog](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/datadog.mdx)
+- [✅ SigNoz](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/signoz.mdx)
+- [✅ OneUptime](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/oneuptime.mdx)
+- [✅ Dynatrace](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/dynatrace.mdx)
+- [✅ OpenObserve](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/openobserve.mdx)
+- [✅ Highlight.io](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/highlight.mdx)
 
 ## Supported Metrics
 
@@ -176,9 +176,9 @@ export OTEL_EXPORTER_OTLP_HEADERS = "YOUR_OTEL_ENDPOINT_AUTH"
 ### Step 3: Visualize and Optimize!
 Now that your LLM observability data is being collected and sent to configured OpenTelemetry destination, the next step is to visualize and analyze this data. This will help you understand your LLM application's performance and behavior and identify where it can be improved.
 
-If you want to use Shield360's Observability Dashboard to monitor LLM usage—like cost, tokens, and user interactions—please check out our [Quickstart Guide](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/quickstart-ai-observability.mdx).
+If you want to use Shield360's Observability Dashboard to monitor LLM usage—like cost, tokens, and user interactions—please check out our [Quickstart Guide](https://github.com/Shield360-AI/shield360-js/blob/main/docs/quickstart-ai-observability.mdx).
 
-If you're sending metrics and traces to other observability tools, take a look at our [Connections Guide](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/destinations/overview.mdx) to start using a pre-built dashboard we have created for these tools.
+If you're sending metrics and traces to other observability tools, take a look at our [Connections Guide](https://github.com/Shield360-AI/shield360-js/blob/main/docs/destinations/overview.mdx) to start using a pre-built dashboard we have created for these tools.
 
 
 ## Zero-code setup
@@ -240,7 +240,7 @@ export const handler = wrapHandler(async (event, context) => {
 });
 ```
 
-Start Shield360 before the function's own imports so provider SDKs are instrumented: set `NODE_OPTIONS=--require shield360/register`, or use the Shield360 Lambda layer, which wraps the handler with no code changes. See [AWS Lambda](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/aws-lambda.mdx).
+Start Shield360 before the function's own imports so provider SDKs are instrumented: set `NODE_OPTIONS=--require shield360/register`, or use the Shield360 Lambda layer, which wraps the handler with no code changes. See [AWS Lambda](https://github.com/Shield360-AI/shield360-js/blob/main/docs/aws-lambda.mdx).
 
 ### Cloudflare Workers - `shield360/workers`
 
@@ -257,7 +257,7 @@ export default withShield360({
 });
 ```
 
-It reads the `SHIELD360_URL` and `SHIELD360_API_KEY` bindings (or `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS`). See [Cloudflare Workers](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/cloudflare-workers.mdx) and, for Next.js on Vercel, [Vercel](https://github.com/ThinkfleetAI/shield360-js/blob/main/docs/vercel.mdx).
+It reads the `SHIELD360_URL` and `SHIELD360_API_KEY` bindings (or `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS`). See [Cloudflare Workers](https://github.com/Shield360-AI/shield360-js/blob/main/docs/cloudflare-workers.mdx) and, for Next.js on Vercel, [Vercel](https://github.com/Shield360-AI/shield360-js/blob/main/docs/vercel.mdx).
 
 ## Configuration
 

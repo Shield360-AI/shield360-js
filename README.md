@@ -337,6 +337,20 @@ await Shield360.feedback({ traceId, score: 1, scale: 'stars' }); // one star
 
 Ratings show on the trace and under Telemetry → Feedback, by release and by feature flag variant.
 
+### Trusted devices - `Shield360.devices`
+
+Register each user's device at sign-in so Shield360 Edge trusts the requests it signs. The device makes its own key (`@shield360/web` with `devices: true`, `@shield360/react-native-devices`, or `createDeviceSigner` from `shield360/devices` on a Node kiosk) and sends only its public key with the sign-in request:
+
+```typescript
+const { kid } = await Shield360.devices.register({ publicKey, userRef: user.id, label: 'Chrome on macOS' });
+await Shield360.devices.revoke(kid);                 // sign-out
+await Shield360.devices.revokeUser(user.id);         // sign out everywhere
+const list = await Shield360.devices.list(user.id);  // your own "Your devices" screen
+await Shield360.devices.confirmPairing(code, user.id); // a kiosk's 6-digit code
+```
+
+`userRef` is your pseudonymous user id, never an email. The methods throw `DeviceError` when Shield360 refuses or can't be reached, so catch it and never fail a sign-in because of it. See [Trusted devices](https://shield360.ai).
+
 ### Shield360 Prompt Hub - `Shield360.getPrompt()`
 
 Below are the parameters for use with the SDK for Shield360 Prompt Hub for prompt management:

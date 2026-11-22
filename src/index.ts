@@ -55,6 +55,8 @@ import { setupAiSecurity } from './ai-security/hooks';
 import { resolveCaptureCodeLocation } from './otel/code-location';
 import { ATTR_SERVICE_VERSION, resolveBuildAttributes } from './otel/build-info';
 import { configureFeedback, feedback, getCurrentSpanId, getCurrentTraceId } from './feedback';
+// Trusted devices: register and revoke the devices Shield360 Edge trusts.
+import { devices, DeviceError } from './devices/client';
 // SHIELD: runtime protection (RASP), opt-in.
 import { initRasp, disableRasp, enableRasp } from './rasp';
 // SHIELD: runtime SCA — the packages the app runs, matched server-side.
@@ -250,6 +252,10 @@ class Shield360 extends BaseShield360 {
 
   /** Feature flags: `Shield360.flags.getFlag(key, context, default)` and `isEnabled(key, context)`. */
   static flags = flagsClient;
+
+  /** Trusted devices: `Shield360.devices.register({ publicKey, userRef })`, `revoke(kid)`, `revokeUser(userRef)`, `list(userRef)`, `confirmPairing(code, userRef)`. */
+  static devices = devices;
+  static DeviceError = DeviceError;
 
   /** Budget check: Shield360.budgets.check({ model, estimatedCostUsd }) never throws; see ./budgets. */
   static budgets = budgets;
@@ -490,6 +496,10 @@ export type { Shield360Options } from './types';
 export type { LogScoreOptions } from './score';
 export { feedback, getCurrentTraceId, getCurrentSpanId } from './feedback';
 export type { FeedbackOptions, FeedbackScale } from './feedback';
+
+// Trusted devices (also at 'shield360/devices', with the Node device signer).
+export { devices, DevicesClient, DeviceError } from './devices/client';
+export type { DeviceTrust, DeviceScope, RegisterDeviceInput, DeviceInfo, ConfirmPairingOptions, DevicesOptions } from './devices/client';
 
 // Shield Protect re-exports: enforcement APIs, apart from the tracing ones above.
 export { protectTool, authorizeWithShield360, protectReadiness, ProtectDeniedError, ProtectReadinessError, ProtectError } from './protect';

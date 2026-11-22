@@ -57,6 +57,10 @@
     "./workers": {
       "types": "./dist/workers/index.d.ts",
       "default": "./dist/workers/index.js"
+    },
+    "./devices": {
+      "types": "./dist/devices/index.d.ts",
+      "default": "./dist/devices/index.js"
     }
   },
   "typesVersions": {
@@ -81,6 +85,9 @@
       ],
       "client-type": [
         "./dist/client-type/index.d.ts"
+      ],
+      "devices": [
+        "./dist/devices/index.d.ts"
       ]
     }
   },

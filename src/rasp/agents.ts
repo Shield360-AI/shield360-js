@@ -8,12 +8,19 @@
  */
 import type { ServerResponse } from 'http';
 import { currentContext, eventRouteOf, type RaspContext } from './context';
-import { CONTEXT_HEADER, REQUEST_ID_HEADER, verifyEdgeContext } from './edge-context';
+import { CONTEXT_HEADER, REQUEST_ID_HEADER, verifyEdgeContext, type EdgeContext } from './edge-context';
 import { attackAgentConfig, modeFor, remoteConfig, reportAttackAgent, sendAgentVerdict, type FindingExtra } from './engine';
 import { attackAgentTracker, hitsTripwire, tripwirePageFor, type AttackMark, type HeaderMap } from './attack-agents';
 import { RaspDeterredError } from './types';
 
 const isVerified = (ct: string | undefined): boolean => ct === 'verified_agent' || ct === 'verified_crawler';
+
+/**
+ * A client this feature never fingerprints, scores, marks, deters or serves a
+ * tripwire: one Edge verified, or the organization's own red team (Edge
+ * verified its X-Shield360-Red-Team header and named the run, `rt`).
+ */
+const leftAlone = (edge: EdgeContext | null | undefined): boolean => !!edge && (isVerified(edge.ct) || typeof edge.rt === 'string');
 
 /**
  * Names the signed-in user of the current request, so the behavior score
@@ -68,7 +75,7 @@ export function agentsBefore(ctx: RaspContext, headers: HeaderMap): void {
     if (mode === 'off') return;
     const cfg = attackAgentConfig();
     ctx.agentHeaders = headers;
-    ctx.agentVerified = isVerified(ctx.edge?.ct);
+    ctx.agentVerified = leftAlone(ctx.edge);
     const r = attackAgentTracker().before({ ip: ctx.ip, user: ctx.user, path: ctx.path ?? '/', headers, inputs: valuesOf(ctx), verified: ctx.agentVerified }, cfg, Date.now());
     if (!r.marked) return;
     const block = mode === 'block';
@@ -157,14 +164,14 @@ const extraEarly = (r: EarlyRequest): FindingExtra => {
 /**
  * The tripwire URL (README "AI attack agents", "Decision" 1): marks the
  * client and answers 404, or the deter error in block mode. Null when the
- * request is not a tripwire hit. Never throws.
+ * request is not a tripwire hit, or its client is left alone. Never throws.
  */
 export function checkTripwire(r: EarlyRequest): { notFound?: true; blocked?: RaspDeterredError } | null {
   try {
     const mode = modeFor('ai_attack_agent');
     if (mode === 'off') return null;
     const cfg = attackAgentConfig();
-    if (!cfg.tripwire || !hitsTripwire(r.url, cfg)) return null;
+    if (!cfg.tripwire || !hitsTripwire(r.url, cfg) || verifiedEarly(r)) return null;
     const res = attackAgentTracker().before({ ip: r.ip, path: r.url, headers: {} }, cfg, Date.now());
     const mark = res.mark as AttackMark;
     const block = mode === 'block';
@@ -175,7 +182,7 @@ export function checkTripwire(r: EarlyRequest): { notFound?: true; blocked?: Ras
   }
 }
 
-/** Whether Edge verified the client of an early request (no replay cache: this only withholds the tripwire page). */
+/** Whether an early request's client is left alone (no replay cache: this only withholds the tripwire). */
 function verifiedEarly(r: EarlyRequest): boolean {
   const raw = r.headers?.[CONTEXT_HEADER];
   const value = Array.isArray(raw) ? raw[0] : raw;
@@ -184,7 +191,7 @@ function verifiedEarly(r: EarlyRequest): boolean {
   const q = r.url.indexOf('?');
   const rid = r.headers?.[REQUEST_ID_HEADER];
   const edge = verifyEdgeContext(keys, value, { method: r.method, path: q >= 0 ? r.url.slice(0, q) : r.url, requestId: typeof rid === 'string' ? rid : undefined }, Date.now(), null);
-  return isVerified(edge?.ct);
+  return leftAlone(edge);
 }
 
 /**

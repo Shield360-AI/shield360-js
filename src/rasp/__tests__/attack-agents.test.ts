@@ -57,7 +57,7 @@ describe('conformance (testdata/ai-attack-agents.json)', () => {
     const t = new AttackAgentTracker();
     sq.steps.forEach((st: any, i: number) => {
       const now = st.at * 1000;
-      const r = { ip: st.ip, user: st.user, path: st.path, headers: st.headers ?? V.defaultHeaders, inputs: st.inputs ?? [], verified: st.verified };
+      const r = { ip: st.ip, user: st.user, path: st.path, headers: st.headers ?? V.defaultHeaders, inputs: st.inputs ?? [], verified: st.verified || st.redTeam };
       let deter = false;
       let mark = null;
       if (!st.decoy) {
@@ -157,9 +157,9 @@ function setup(attackAgents: unknown, mode: 'block' | 'monitor' = 'block', extra
   setSuspiciousTable(new SuspiciousTable());
 }
 
-function contextHeader(method: string, path: string, rid: string, ct = 'human') {
+function contextHeader(method: string, path: string, rid: string, ct = 'human', extra: Record<string, unknown> = {}) {
   const now = Math.floor(Date.now() / 1000);
-  const payload = Buffer.from(JSON.stringify({ rid, iat: now, exp: now + 30, m: method, ph: pathHash(path), ct, risk: 0, trap: 0, fl: false })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ rid, iat: now, exp: now + 30, m: method, ph: pathHash(path), ct, risk: 0, trap: 0, fl: false, ...extra })).toString('base64url');
   return `v1.0a1b2c3d.${payload}.${createHmac('sha256', KEY).update('s360-ctx|v1|').update(payload).digest('base64url')}`;
 }
 
@@ -282,6 +282,27 @@ describe('middleware (raw http)', () => {
       const r = await get(`${s.url}/api/x`, { 'user-agent': 'nuclei/3.3', 'x-request-id': rid, 'x-shield360-edge-context': contextHeader('GET', '/api/x', rid, 'verified_crawler') });
       expect(r.status).toBe(200);
       expect(events).toHaveLength(0);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it('never marks or deters the red team Edge named in its context, even from a marked address', async () => {
+    setup({ tripwire: true });
+    const s = await serve(app);
+    try {
+      expect((await get(`${s.url}/`, { 'user-agent': 'nuclei/3.3' })).status).toBe(429);
+      events.length = 0;
+      for (const path of ['/api/x', '/_debug/console/abc']) {
+        const rid = `req_redteam_${path.length}`;
+        const r = await get(`${s.url}${path}`, { 'user-agent': 'nuclei/3.3', 'x-request-id': rid, 'x-shield360-edge-context': contextHeader('GET', path, rid, 'automation', { rt: 'crun12345678' }) });
+        expect(r.status).not.toBe(429);
+        expect(r.headers['x-shield360-verdict']).toBeUndefined();
+      }
+      expect(attrs().filter((a) => a['shield360.rasp.attack'] === 'ai_attack_agent')).toHaveLength(0);
+      // Without the red team flag, the same address is still deterred.
+      const rid = 'req_notredteam1';
+      expect((await get(`${s.url}/api/x`, { 'user-agent': 'Mozilla/5.0', 'x-request-id': rid, 'x-shield360-edge-context': contextHeader('GET', '/api/x', rid, 'automation') })).status).toBe(429);
     } finally {
       await s.close();
     }

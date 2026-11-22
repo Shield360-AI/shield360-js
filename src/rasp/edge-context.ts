@@ -30,7 +30,9 @@ const KID = /^[0-9a-f]{8}$/;
 const RID = /^[A-Za-z0-9_-]{8,64}$/;
 const CAT = /^[a-z][a-z0-9_]{0,39}$/;
 const CLIENTS = new Set(['human', 'verified_crawler', 'verified_agent', 'automation', 'suspected_agent', 'unknown']);
-const CONTEXT_KEYS = new Set(['rid', 'iat', 'exp', 'm', 'ph', 'ct', 'risk', 'waf', 'trap', 'fl', 'tp']);
+const CONTEXT_KEYS = new Set(['rid', 'iat', 'exp', 'm', 'ph', 'ct', 'risk', 'waf', 'trap', 'fl', 'tp', 'rt']);
+// A red team run id (rt): Edge verified the request's X-Shield360-Red-Team header.
+const RUN = /^[a-z0-9]{8,40}$/;
 const VERDICT_KEYS = new Set(['rid', 'iat', 'act', 'cat', 'src', 'ttl']);
 
 export type EdgeKey = { kid: string; key: Buffer };
@@ -47,6 +49,8 @@ export type EdgeContext = {
   trap: number;
   fl: boolean;
   tp?: string;
+  /** The red team run Edge verified this request belongs to (its X-Shield360-Red-Team header). */
+  rt?: string;
 };
 
 export type EdgeVerdict = { rid: string; iat: number; act: 'block' | 'flag'; cat: string; src: 'rasp' | 'sdk' | 'defend'; ttl: number };
@@ -128,8 +132,9 @@ export function verifyEdgeContext(keys: EdgeKey[], value: unknown, req: { method
     if (c.m !== req.method || c.ph !== pathHash(req.path) || typeof req.requestId !== 'string' || req.requestId !== c.rid) return null;
     if (typeof c.risk !== 'number' || c.risk < 0 || c.risk > 100 || typeof c.trap !== 'number' || c.trap < 0 || c.trap > 4) return null;
     if (c.waf !== undefined && (!Array.isArray(c.waf) || c.waf.length > 16 || !c.waf.every((w) => typeof w === 'string' && CAT.test(w)))) return null;
+    if (c.rt !== undefined && (typeof c.rt !== 'string' || !RUN.test(c.rt))) return null;
     if (cache && !cache.first(`c:${c.rid}`, (c.exp + SKEW_S) * 1000, nowMs)) return null;
-    return { rid: c.rid, iat: c.iat, exp: c.exp, m: c.m, ph: c.ph, ct: c.ct, risk: c.risk, trap: c.trap, fl: c.fl === true, ...(c.waf ? { waf: c.waf } : {}), ...(typeof c.tp === 'string' ? { tp: c.tp } : {}) };
+    return { rid: c.rid, iat: c.iat, exp: c.exp, m: c.m, ph: c.ph, ct: c.ct, risk: c.risk, trap: c.trap, fl: c.fl === true, ...(c.waf ? { waf: c.waf } : {}), ...(typeof c.tp === 'string' ? { tp: c.tp } : {}), ...(c.rt ? { rt: c.rt } : {}) };
   } catch {
     return null;
   }

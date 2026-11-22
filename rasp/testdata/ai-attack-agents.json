@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "comment": "AI attack agent conformance (sdk/rasp/README.md \"AI attack agents\"). Written by hand from the contract; the generator only expands repeated steps. config: the attackAgents value and what it reads as. clientKey/userKey: the client key of an address or a user id (null: none). fingerprint: lower-case request headers and {kind,id} or null. oast: a request value and the domain entry found, or null. sequences: steps run through one fresh tracker in block mode with the defaults overridden by the sequence's config; a step without headers sends a browser User-Agent (defaultHeaders); expect.deter: the request gets the deter response; expect.mark: {kind, reason} the step marks (the kind the client has after it), or null. Decoy steps skip the before-handler check and are scored as decoy hits. clientTypeRules: a Defend or security rule naming client types matches a classified client (clientType null: not classified); scanner and ai_attack_agent are subtypes of unverified_automation, so a rule naming unverified_automation matches all three, while a rule naming scanner or ai_attack_agent matches only that type.",
+  "comment": "AI attack agent conformance (sdk/rasp/README.md \"AI attack agents\"). Written by hand from the contract; the generator only expands repeated steps. config: the attackAgents value and what it reads as. clientKey/userKey: the client key of an address or a user id (null: none). fingerprint: lower-case request headers and {kind,id} or null. oast: a request value and the domain entry found, or null. sequences: steps run through one fresh tracker in block mode with the defaults overridden by the sequence's config; a step without headers sends a browser User-Agent (defaultHeaders); expect.deter: the request gets the deter response; expect.mark: {kind, reason} the step marks (the kind the client has after it), or null. Decoy steps skip the before-handler check and are scored as decoy hits. A step with redTeam true came with a verified Edge context naming a red team run (rt): nothing is marked, scored or deterred for it, whatever its headers, inputs or status. clientTypeRules: a Defend or security rule naming client types matches a classified client (clientType null: not classified); scanner and ai_attack_agent are subtypes of unverified_automation, so a rule naming unverified_automation matches all three, while a rule naming scanner or ai_attack_agent matches only that type.",
   "defaultHeaders": {"user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36"},
   "config": [
     {"name": "absent", "value": null, "expect": {"threshold": 20, "markTtlSeconds": 1800, "retryAfterSeconds": 300, "tripwire": false, "tripwirePath": "/_debug/console"}},
@@ -616,6 +616,41 @@
     ]},
     {"name": "a scanner Edge verified is left alone", "kind": "benign", "steps": [
       {"at": 1763700000, "ip": "203.0.113.29", "path": "/", "status": 200, "verified": true, "headers": {"user-agent": "nuclei/3.3"}, "inputs": ["http://cb.oast.fun"], "expect": {"deter": false, "mark": null}}
+    ]},
+    {"name": "the authorized red team Edge named in its context is never marked, scored or deterred; the same address without it is", "kind": "attack", "config": {"tripwire": true}, "steps": [
+      {"at": 1763700000, "ip": "203.0.113.40", "path": "/", "status": 200, "redTeam": true, "headers": {"user-agent": "nuclei/3.3"}, "inputs": ["http://cb.oast.fun"], "expect": {"deter": false, "mark": null}},
+      {"at": 1763700001, "ip": "203.0.113.40", "path": "/api/login", "status": 200, "redTeam": true, "headers": {"user-agent": "", "x-artex-replay-nonce": "9b1e"}, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700002, "ip": "203.0.113.40", "path": "/_debug/console/abc", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700003, "ip": "203.0.113.40", "path": "/rt/probe0", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700004, "ip": "203.0.113.40", "path": "/rt/probe1", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700005, "ip": "203.0.113.40", "path": "/rt/probe2", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700006, "ip": "203.0.113.40", "path": "/rt/probe3", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700007, "ip": "203.0.113.40", "path": "/rt/probe4", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700008, "ip": "203.0.113.40", "path": "/rt/probe5", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700009, "ip": "203.0.113.40", "path": "/rt/probe6", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700010, "ip": "203.0.113.40", "path": "/rt/probe7", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700011, "ip": "203.0.113.40", "path": "/rt/probe8", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700012, "ip": "203.0.113.40", "path": "/rt/probe9", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700013, "ip": "203.0.113.40", "path": "/rt/probe10", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700014, "ip": "203.0.113.40", "path": "/rt/probe11", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700015, "ip": "203.0.113.40", "path": "/rt/probe12", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700016, "ip": "203.0.113.40", "path": "/rt/probe13", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700017, "ip": "203.0.113.40", "path": "/rt/probe14", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700018, "ip": "203.0.113.40", "path": "/rt/probe15", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700019, "ip": "203.0.113.40", "path": "/rt/probe16", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700020, "ip": "203.0.113.40", "path": "/rt/probe17", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700021, "ip": "203.0.113.40", "path": "/rt/probe18", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700022, "ip": "203.0.113.40", "path": "/rt/probe19", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700023, "ip": "203.0.113.40", "path": "/rt/probe20", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700024, "ip": "203.0.113.40", "path": "/rt/probe21", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700025, "ip": "203.0.113.40", "path": "/rt/probe22", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700026, "ip": "203.0.113.40", "path": "/rt/probe23", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700027, "ip": "203.0.113.40", "path": "/rt/probe24", "status": 404, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700028, "ip": "203.0.113.40", "path": "/api/orders/1", "status": 500, "redTeam": true, "route": "/api/orders/:id", "finding": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700029, "ip": "203.0.113.40", "path": "/.env", "status": 404, "redTeam": true, "decoy": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700030, "ip": "203.0.113.40", "path": "/", "status": 200, "headers": {"user-agent": "nuclei/3.3"}, "expect": {"deter": true, "mark": {"kind": "scanner", "reason": "fingerprint"}}},
+      {"at": 1763700031, "ip": "203.0.113.40", "path": "/api/orders", "status": 200, "redTeam": true, "expect": {"deter": false, "mark": null}},
+      {"at": 1763700032, "ip": "203.0.113.40", "path": "/api/orders", "status": 200, "expect": {"deter": true, "mark": null}}
     ]}
   ]
 }

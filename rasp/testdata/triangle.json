@@ -428,8 +428,59 @@
       }
     },
     {
+      "name": "valid, a red team run (rt)",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfcmVkdGVhbV8wMSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJydCI6ImNydW4xMjM0NTY3OCJ9.2uSH66okEmWm2i10X7NJe1BjkgdD_dcaWUOpJTUfXxY",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_redteam_01",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": {
+        "rid": "req_redteam_01",
+        "iat": 1800000000,
+        "exp": 1800000030,
+        "m": "POST",
+        "ph": "0ef7787276b27eb3",
+        "ct": "suspected_agent",
+        "risk": 80,
+        "trap": 2,
+        "fl": true,
+        "rt": "crun12345678"
+      }
+    },
+    {
       "name": "bad MAC",
       "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlfQ.dvfzJBIYcDQOYtZyKqmf3NW95fKDhsSv09e7_iSAAAA",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "rt not a run id",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJydCI6IkNydW4tMTIzNCJ9.XZiswTmSBKnkuBJirs6yhCcP9EsfcYVAjXYcZO71jbo",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "rt too short",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJydCI6ImNydW4xMjMifQ.z7XVjkgWFN9pTMb-95FwhXKf3XZftdeiFd28UrYRzTQ",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "rt not a string",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJydCI6MTIzNDU2Nzh9.aae71NBB0An5mbD3hQ72zB9TISGFmiFws3wVpnCxDcA",
       "method": "POST",
       "path": "/api/orders",
       "requestId": "req_0123456789",

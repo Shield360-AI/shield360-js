@@ -20,7 +20,8 @@ export type AttackType =
   | 'custom_rule'
   | 'deception'
   | 'malicious_upload'
-  | 'upload_backdoor';
+  | 'upload_backdoor'
+  | 'ai_attack_agent';
 
 export const ATTACK_TYPES: readonly AttackType[] = [
   'sql_injection',
@@ -41,6 +42,7 @@ export const ATTACK_TYPES: readonly AttackType[] = [
   'deception',
   'malicious_upload',
   'upload_backdoor',
+  'ai_attack_agent',
 ];
 
 /** Attack types that only ever report: `block` is treated as `monitor` (README "Attack types and modes"). */
@@ -132,6 +134,12 @@ export type RaspOptions = {
   iast?: boolean | { enabled?: boolean; sampleRate?: number };
   /** Upload inspection and deep scan (README "Uploads"): used without a signed config; `scanBytes` and `quarantineDir` always. */
   uploads?: import('./upload-policy').UploadOptions;
+  /**
+   * AI attack agents (README "AI attack agents"): `{ threshold, markTtlSeconds,
+   * retryAfterSeconds, tripwire, tripwirePath }`, used without a signed config.
+   * The LLM tripwire is off unless `tripwire: true`.
+   */
+  attackAgents?: Partial<import('./attack-agents').AttackAgentConfig>;
 };
 
 export const BLOCK_MESSAGE = 'Request blocked by Shield360 runtime protection';
@@ -146,8 +154,8 @@ export class RaspBlockedError extends Error {
   readonly rule: string;
   readonly eventId: string;
   /** For framework error handlers that read the status from the error (Express, Fastify, Koa). */
-  readonly status = 403;
-  readonly statusCode = 403;
+  readonly status: number = 403;
+  readonly statusCode: number = 403;
   constructor(attack: AttackType, rule: string, eventId: string) {
     super(`${BLOCK_MESSAGE} (${attack}, ${rule})`);
     this.name = 'RaspBlockedError';
@@ -160,4 +168,32 @@ export class RaspBlockedError extends Error {
 /** The JSON body of the 403 (README "The block response"). */
 export function blockBody(e: RaspBlockedError): { error: string; attack: AttackType; rule: string; event: string } {
   return { error: BLOCK_MESSAGE, attack: e.attack, rule: e.rule, event: e.eventId };
+}
+
+/**
+ * The deter response (README "AI attack agents"): a marked attack agent in
+ * block mode gets 429 with Retry-After instead of the 403, so agents that
+ * honor rate limits give up. Middleware maps it like the block error.
+ */
+export class RaspDeterredError extends RaspBlockedError {
+  readonly status: number = 429;
+  readonly statusCode: number = 429;
+  readonly retryAfter: number;
+  constructor(rule: string, eventId: string, retryAfter: number) {
+    super('ai_attack_agent', rule, eventId);
+    this.name = 'RaspDeterredError';
+    this.retryAfter = retryAfter;
+  }
+}
+
+export const DETER_MESSAGE = 'Too Many Requests';
+
+/** The status, extra headers and JSON body a block (403) or deter (429) answers with. */
+export function blockAnswer(e: RaspBlockedError): { status: number; headers: Record<string, string>; body: string } {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+  if (e instanceof RaspDeterredError) {
+    headers['Retry-After'] = String(e.retryAfter);
+    return { status: 429, headers, body: JSON.stringify({ error: DETER_MESSAGE }) };
+  }
+  return { status: 403, headers, body: JSON.stringify(blockBody(e)) };
 }

@@ -15,6 +15,8 @@ import { AttackType, ATTACK_TYPES, Finding, MONITOR_ONLY, RaspAllow, RaspBlocked
 import { BUILT_IN_RULES, VirtualPatch } from './vpatch';
 import { maskTarget, maskText } from '../masking';
 import { edgeSaysSuspect, signVerdict, VERDICT_HEADER, type EdgeKey } from './edge-context';
+// SHIELD: AI attack agents (README "AI attack agents").
+import { parseAttackAgents, type AttackAgentConfig, type AttackMark } from './attack-agents';
 
 /** The parts of a verified signed config the engine uses (config-client.ts verifies it). */
 export type RemoteConfig = {
@@ -36,6 +38,8 @@ export type RemoteConfig = {
   deception?: DeceptionConfig | null;
   /** SHIELD: protection triangle — keys for Edge's context header and the app's verdicts (edge-context.ts). */
   edgeKeys?: EdgeKey[];
+  /** SHIELD: AI attack agents — the signed `attackAgents` block, read; null or absent = the local option. */
+  attackAgents?: AttackAgentConfig | null;
 };
 
 export type RaspEventSink = {
@@ -49,7 +53,7 @@ type State = {
   runtimeDisabled: boolean;
   /** No pinned key while a remote config was expected: block is capped at monitor. */
   monitorOnly: boolean;
-  local: { mode: RaspMode; attacks: Partial<Record<AttackType, RaspMode>>; allow: RaspAllow };
+  local: { mode: RaspMode; attacks: Partial<Record<AttackType, RaspMode>>; allow: RaspAllow; attackAgents: AttackAgentConfig };
   remote?: RemoteConfig;
   /** The signed config's custom rules that apply to this app, compiled. */
   customRules: CustomRule[];
@@ -64,7 +68,7 @@ const state: State = {
   envOff: false,
   runtimeDisabled: false,
   monitorOnly: false,
-  local: { mode: 'monitor', attacks: {}, allow: emptyAllow() },
+  local: { mode: 'monitor', attacks: {}, allow: emptyAllow(), attackAgents: parseAttackAgents(undefined) },
   customRules: [],
   applicationName: 'default',
 };
@@ -99,6 +103,8 @@ export type EngineSettings = {
   modelOutput?: boolean;
   monitorOnly?: boolean;
   env?: NodeJS.ProcessEnv;
+  /** SHIELD: AI attack agents — the local `attackAgents` option. */
+  attackAgents?: unknown;
 };
 
 export function configureEngine(s: EngineSettings): void {
@@ -118,6 +124,7 @@ export function configureEngine(s: EngineSettings): void {
       outboundHosts: strings(s.allow?.outboundHosts) ?? [],
       fileRoots: strings(s.allow?.fileRoots) ?? [],
     },
+    attackAgents: parseAttackAgents(s.attackAgents),
   };
   setModelOutputRecording(state.enabled && s.modelOutput !== false);
 }
@@ -236,6 +243,41 @@ export function reportDeception(rule: string, block: boolean, extra: FindingExtr
   return eventId;
 }
 
+/** SHIELD: AI attack agents — the settings in force: the signed config's block, else the local option. */
+export function attackAgentConfig(): AttackAgentConfig {
+  return state.remote?.attackAgents ?? state.local.attackAgents;
+}
+
+/**
+ * SHIELD: AI attack agents — reports a mark or a marked client's request
+ * (attack `ai_attack_agent`, sink `http.attack_agent`, no input) with the
+ * client kind and reason, and returns its event id. Never throws.
+ */
+export function reportAttackAgent(rule: string, block: boolean, extra: FindingExtra, mark: AttackMark): string {
+  const eventId = randomBytes(16).toString('hex');
+  emit({ attack: 'ai_attack_agent', rule }, 'http.attack_agent', { ...extra, agent: mark }, block ? 'blocked' : 'monitored', block ? 'block' : 'monitor', eventId);
+  return eventId;
+}
+
+/**
+ * SHIELD: AI attack agents — tells Edge to block a marked client: a signed
+ * verdict with the client kind as category and the mark's TTL. Needs a
+ * verified Edge context and an open response; replaces a flag verdict set
+ * earlier in the request. Never throws.
+ */
+export function sendAgentVerdict(kind: string, ttlSeconds: number, ctx = currentContext()): void {
+  try {
+    const keys = state.remote?.edgeKeys;
+    if (!ctx?.edge || !ctx.setHeader || !keys?.length) return;
+    const v = signVerdict(keys, { rid: ctx.edge.rid, iat: Math.floor(Date.now() / 1000), act: 'block', cat: kind, src: 'rasp', ttl: ttlSeconds });
+    if (!v) return;
+    ctx.setHeader(VERDICT_HEADER, v);
+    ctx.verdictSent = true;
+  } catch {
+    // reporting to Edge never breaks the call
+  }
+}
+
 /**
  * Queues a record that is not an attack event (README "Scanner status"),
  * with the app and language added; an empty fold key never folds. Never throws.
@@ -271,7 +313,7 @@ const safeRoute = (r: string) => {
 const safeMethod = (m: string | undefined) => (m && /^[A-Za-z]{3,10}$/.test(m) ? m.toUpperCase() : '');
 
 export type Decision = 'blocked' | 'monitored';
-export type FindingExtra = { framework?: string; route?: string; method?: string; path?: string; tightenedByEdge?: boolean };
+export type FindingExtra = { framework?: string; route?: string; method?: string; path?: string; tightenedByEdge?: boolean; agent?: AttackMark };
 
 const UPLOAD_TYPE = /^[a-z0-9_]{1,16}$/;
 const UPLOAD_SIGNATURE = /^[A-Za-z0-9._:/-]{1,128}$/;
@@ -326,6 +368,11 @@ function emit(f: Finding, sink: string, extra: FindingExtra, decision: Decision,
     if (state.remote?.reportTargets && TARGET_RULES.has(f.rule)) opt('shield360.rasp.target', maskTarget(f.target));
     if (f.attack === 'sql_injection' && f.dialect && SQL_DIALECT_NAMES.has(f.dialect)) attrs['shield360.rasp.sql.dialect'] = f.dialect;
     if (f.upload && (f.attack === 'malicious_upload' || f.attack === 'upload_backdoor')) uploadAttrs(attrs, f.upload);
+    // SHIELD: AI attack agents — the client kind and the reason it was marked.
+    if (extra.agent && f.attack === 'ai_attack_agent') {
+      attrs['shield360.rasp.client_kind'] = extra.agent.kind;
+      attrs['shield360.rasp.reason'] = extra.agent.reason;
+    }
     state.sink?.add({ name: 'shield360.rasp.event', time: new Date().toISOString(), attrs }, [f.attack, f.rule, sink, route, decision].join('\u0000'));
   } catch {
     // reporting never breaks the call
@@ -347,6 +394,9 @@ export function handleFinding(f: Finding, sink: string, extra: FindingExtra = {}
   const tightened = mode === 'monitor' && !f.action && TIGHTEN.has(f.attack) && edgeSaysSuspect(ctx?.edge) && !state.monitorOnly;
   if (tightened) mode = 'block';
   const decision: Decision = mode === 'block' && !MONITOR_ONLY.has(f.attack) ? 'blocked' : 'monitored';
+  // SHIELD: AI attack agents — a finding feeds the client's behavior score; a block's 403 is never an auth failure.
+  if (ctx && !AGENT_EXCLUDED.has(f.attack)) ctx.agentFinding = true;
+  if (ctx && decision === 'blocked') ctx.ownBlock = true;
   const eventId = randomBytes(16).toString('hex');
   emit(f, sink, { ...extra, ...(tightened ? { tightenedByEdge: true } : {}) }, decision, mode, eventId);
   sendVerdict(f, decision);
@@ -363,6 +413,9 @@ export function wouldBlock(f: Finding): boolean {
   if (f.action && RANK[f.action] < RANK[mode]) mode = f.action;
   return mode === 'block' && !MONITOR_ONLY.has(f.attack);
 }
+
+/** SHIELD: AI attack agents — findings of these types do not add to the behavior score. */
+const AGENT_EXCLUDED = new Set<AttackType>(['ai_attack_agent', 'deception', 'baseline']);
 
 /** SHIELD: protection triangle — attacks Edge's view of the client may tighten from monitor to block. */
 const TIGHTEN = new Set<AttackType>(['sql_injection', 'nosql_injection', 'command_injection', 'shell_spawn', 'code_injection', 'path_traversal', 'ssrf', 'deserialization', 'xxe'] as AttackType[]);

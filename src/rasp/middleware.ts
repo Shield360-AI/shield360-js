@@ -9,36 +9,56 @@
  */
 import type { IncomingMessage, ServerResponse } from 'http';
 import { bodyAbsent, captureBody, captureLater, captureNoBody, captureRequest, lowerHeaders, runVirtualPatches, type BodyShape } from './capture';
-import { currentContext, storage, type RaspContext } from './context';
+import { currentContext, eventRouteOf, storage, type RaspContext } from './context';
 import { checkDeception, type DeceptionOutcome, type DeceptionRequest } from './deception';
 import { isActive } from './engine';
-import { blockBody, RaspBlockedError } from './types';
+import { blockAnswer, RaspBlockedError } from './types';
+// SHIELD: AI attack agents — the before-handler check, the status watch and the deter answer (agents.ts).
+import { agentsAfter, agentsBefore, inheritAgents, watchStatus } from './agents';
 import { inspectFormData } from './upload';
 
 export function isRaspBlocked(e: unknown): e is RaspBlockedError {
   return e instanceof RaspBlockedError;
 }
 
-const BLOCK_HEADERS = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
-
-/** Writes the 403 on a Node response (no-op once the headers are out). */
+/** Writes the 403 (or the 429 deter answer) on a Node response (no-op once the headers are out). */
 export function sendBlocked(res: ServerResponse, e: RaspBlockedError): void {
   try {
     if (res.headersSent || res.writableEnded) {
       if (!res.writableEnded) res.end();
       return;
     }
-    res.statusCode = 403;
-    for (const [k, v] of Object.entries(BLOCK_HEADERS)) res.setHeader(k, v);
-    res.end(JSON.stringify(blockBody(e)));
+    const a = blockAnswer(e);
+    res.statusCode = a.status;
+    for (const [k, v] of Object.entries(a.headers)) res.setHeader(k, v);
+    res.end(a.body);
   } catch {
     // the response is already gone
   }
 }
 
-/** The 403 as a fetch Response (Next.js and other fetch-style handlers). */
+/** The 403 (or the 429 deter answer) as a fetch Response (Next.js and other fetch-style handlers). */
 export function blockedResponse(e: RaspBlockedError): Response {
-  return new Response(JSON.stringify(blockBody(e)), { status: 403, headers: BLOCK_HEADERS });
+  const a = blockAnswer(e);
+  return new Response(a.body, { status: a.status, headers: a.headers });
+}
+
+/** SHIELD: AI attack agents — the decoy 404 with the LLM tripwire page (README "AI attack agents"). */
+export function sendTripwirePage(req: IncomingMessage, res: ServerResponse, page: string): void {
+  try {
+    if (res.headersSent || res.writableEnded) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
+    res.statusCode = 404;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Length', Buffer.byteLength(page, 'utf8'));
+    if (req.method === 'HEAD') res.end();
+    else res.end(page, 'utf8');
+  } catch {
+    // the response is already gone
+  }
 }
 
 /** The client address: the framework's own (Express `req.ip` honors `trust proxy`), else the socket's peer. */
@@ -46,6 +66,9 @@ const ipOf = (own: unknown, req?: { socket?: { remoteAddress?: unknown } }): str
   const v = typeof own === 'string' && own ? own : req?.socket?.remoteAddress;
   return typeof v === 'string' && v ? v : undefined;
 };
+
+/** SHIELD: AI attack agents — what the before-handler check needs from an adapter. */
+type AgentsHook = { headers: Record<string, string | string[] | undefined>; res?: ServerResponse; route?: () => string | undefined };
 
 /** Deception, unless the zero-code capture already ran it for this request (it answers decoys itself). */
 function deceive(r: DeceptionRequest): DeceptionOutcome {
@@ -130,6 +153,7 @@ function begin(
   body: () => BodyShape | undefined,
   noBody?: () => boolean,
   setHeader?: (name: string, value: string) => void,
+  agents?: AgentsHook,
 ): { ctx?: RaspContext; blocked?: RaspBlockedError } {
   let ctx: RaspContext | undefined;
   try {
@@ -142,6 +166,13 @@ function begin(
       // A body that shows up anyway (an adapter that sent no length) is still captured late.
       captureLater(ctx, body);
       if (noBody?.()) captureNoBody(ctx);
+    }
+    // SHIELD: AI attack agents — once the inputs are known, before the patches: a marked client is deterred here.
+    if (agents) {
+      inheritAgents(ctx);
+      if (agents.route) ctx.routeLater = agents.route;
+      watchStatus(agents.res, ctx);
+      agentsBefore(ctx, agents.headers);
     }
     runVirtualPatches(ctx);
     return { ctx };
@@ -233,8 +264,9 @@ export function raspExpress(options: RaspExpressOptions = {}) {
     if (!isActive()) return next();
     markFrameworkServer(socketServer(req));
     // The full target the client sent (`originalUrl`: a router mount does not strip it).
-    const d = deceive({ framework: 'express', method: req.method || 'GET', url: req.originalUrl || req.url || '/', ip: ipOf(req.ip, req) });
+    const d = deceive({ framework: 'express', method: req.method || 'GET', url: req.originalUrl || req.url || '/', ip: ipOf(req.ip, req), headers: req.headers });
     if (d.notFound) {
+      if (d.page) return sendTripwirePage(req, res, d.page);
       try {
         if (options.notFound) return options.notFound(req, res);
       } catch {
@@ -260,11 +292,19 @@ export function raspExpress(options: RaspExpressOptions = {}) {
       },
       () => bodyAbsent(req.headers, req.httpVersionMajor),
       nodeHeaderSetter(res),
+      { headers: req.headers, res, route: () => expressRoute(req) },
     );
     if (r.blocked) return sendBlocked(res, r.blocked);
     if (!r.ctx) return next();
     storage.run(r.ctx, () => next());
   };
+}
+
+/** SHIELD: AI attack agents — the route Express matched (mount path + route path), read when the app answers. */
+function expressRoute(req: ExpressReq & { baseUrl?: unknown }): string | undefined {
+  const p = req.route?.path;
+  if (typeof p !== 'string') return undefined;
+  return (typeof req.baseUrl === 'string' ? req.baseUrl : '') + p;
 }
 
 /** Maps the block error from a handler to the 403; passes every other error on. */
@@ -298,9 +338,10 @@ const FASTIFY_CTX = Symbol('shield360.rasp.context');
 
 function fastifyBlocked(reply: FastifyReply, e: RaspBlockedError): void {
   try {
-    let r = reply.code(403);
-    for (const [k, v] of Object.entries(BLOCK_HEADERS)) r = r.header(k, v);
-    r.send(JSON.stringify(blockBody(e)));
+    const a = blockAnswer(e);
+    let r = reply.code(a.status);
+    for (const [k, v] of Object.entries(a.headers)) r = r.header(k, v);
+    r.send(a.body);
   } catch {
     // the reply is already gone
   }
@@ -343,7 +384,15 @@ export function raspFastify(fastify: FastifyLike, _opts: unknown, done: Next): v
   markFrameworkServer(fastify.server);
   fastify.addHook('onRequest', (request, reply, next) => {
     if (!isActive()) return next();
-    const d = deceive({ framework: 'fastify', method: request.method, url: request.url, ip: ipOf(request.ip) });
+    const d = deceive({ framework: 'fastify', method: request.method, url: request.url, ip: ipOf(request.ip), headers: request.headers });
+    if (d.notFound && d.page) {
+      try {
+        reply.code(404).header('Content-Type', 'text/html; charset=utf-8').header('Cache-Control', 'no-store').send(d.page);
+      } catch {
+        // the reply is already gone
+      }
+      return;
+    }
     if (d.notFound) return fastifyNotFound(request, reply, next);
     if (d.blocked) return fastifyBlocked(reply, d.blocked);
     const route = request.routeOptions?.url ?? request.routerPath;
@@ -365,6 +414,7 @@ export function raspFastify(fastify: FastifyLike, _opts: unknown, done: Next): v
       // it parses nothing when there is neither a length nor chunks.
       () => fastifyNoBody(request.method, request.headers),
       nodeHeaderSetter((reply as { raw?: ServerResponse }).raw),
+      { headers: request.headers, res: (reply as { raw?: ServerResponse }).raw, route: () => (request.is404 ? undefined : typeof route === 'string' ? route : undefined) },
     );
     if (r.blocked) return fastifyBlocked(reply, r.blocked);
     if (!r.ctx) return next();
@@ -407,13 +457,14 @@ type KoaContext = {
 };
 
 function koaBlocked(k: KoaContext, e: RaspBlockedError): void {
-  k.status = 403;
+  const a = blockAnswer(e);
+  k.status = a.status;
   try {
-    for (const [h, v] of Object.entries(BLOCK_HEADERS)) k.set?.(h, v);
+    for (const [h, v] of Object.entries(a.headers)) k.set?.(h, v);
   } catch {
     // headers are best effort
   }
-  k.body = blockBody(e);
+  k.body = JSON.parse(a.body);
 }
 
 /** Koa middleware: `app.use(raspKoa())`, ideally after the body parser. */
@@ -424,7 +475,18 @@ export function raspKoa() {
       return;
     }
     markFrameworkServer(socketServer(k.req as { socket?: unknown } | undefined));
-    const d = deceive({ framework: 'koa', method: k.method, url: k.originalUrl || k.url || '/', ip: ipOf(k.ip) });
+    const d = deceive({ framework: 'koa', method: k.method, url: k.originalUrl || k.url || '/', ip: ipOf(k.ip), headers: k.headers ?? k.request?.headers });
+    if (d.notFound && d.page) {
+      k.status = 404;
+      try {
+        k.set?.('Content-Type', 'text/html; charset=utf-8');
+        k.set?.('Cache-Control', 'no-store');
+      } catch {
+        // headers are best effort
+      }
+      k.body = d.page;
+      return;
+    }
     if (d.notFound) {
       // What Koa does with a path nothing answers: status 404 and no body, so Koa sends "Not Found" as text/plain.
       k.status = 404;
@@ -447,6 +509,7 @@ export function raspKoa() {
       () => (k.request?.body === undefined ? undefined : { body: k.request.body, contentType: contentTypeOf(headers) }),
       () => bodyAbsent(headers, k.req?.httpVersionMajor),
       nodeHeaderSetter((k as { res?: ServerResponse }).res),
+      { headers, res: (k as { res?: ServerResponse }).res, route: () => (typeof k._matchedRoute === 'string' ? k._matchedRoute : undefined) },
     );
     if (r.blocked) return koaBlocked(k, r.blocked);
     if (!r.ctx) {
@@ -475,8 +538,8 @@ type HttpHandler = (req: IncomingMessage, res: ServerResponse) => unknown;
 export function raspHttp<H extends HttpHandler>(handler: H): H {
   const wrapped = function (this: unknown, req: IncomingMessage, res: ServerResponse): unknown {
     if (!isActive()) return handler.call(this, req, res);
-    const d = deceive({ framework: 'http', method: req.method || 'GET', url: req.url || '/', ip: ipOf(undefined, req) });
-    if (d.notFound) return sendNotFound(res);
+    const d = deceive({ framework: 'http', method: req.method || 'GET', url: req.url || '/', ip: ipOf(undefined, req), headers: req.headers });
+    if (d.notFound) return d.page ? sendTripwirePage(req, res, d.page) : sendNotFound(res);
     if (d.blocked) return sendBlocked(res, d.blocked);
     const withBody = req as IncomingMessage & { body?: unknown };
     const r = begin(
@@ -484,6 +547,7 @@ export function raspHttp<H extends HttpHandler>(handler: H): H {
       () => (withBody.body === undefined ? undefined : { body: withBody.body, contentType: contentTypeOf(req.headers) }),
       () => bodyAbsent(req.headers, req.httpVersionMajor),
       nodeHeaderSetter(res),
+      { headers: req.headers, res },
     );
     if (r.blocked) return sendBlocked(res, r.blocked);
     if (!r.ctx) return handler.call(this, req, res);
@@ -605,7 +669,7 @@ export function withRasp<C = unknown>(handler: RouteHandler<C>): RouteHandler<C>
     // Next.js gives only the parsed URL (dot segments already resolved) and no client address, so a hit marks nothing.
     const d = deceive({ framework: 'nextjs', method: request.method, url: url.pathname + url.search });
     // What `notFound()` gives in a route handler: an empty 404.
-    if (d.notFound) return new Response(null, { status: 404 });
+    if (d.notFound) return d.page ? new Response(d.page, { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } }) : new Response(null, { status: 404 });
     if (d.blocked) return blockedResponse(d.blocked);
     let ctx: RaspContext | undefined;
     const pending: [string, string][] = [];
@@ -626,6 +690,11 @@ export function withRasp<C = unknown>(handler: RouteHandler<C>): RouteHandler<C>
       ctx.setHeader = (name, value) => {
         pending.push([name, value]);
       };
+      // SHIELD: AI attack agents — a route handler is a matched route; a marked client is deterred here.
+      const matched = eventRouteOf(url.pathname);
+      ctx.routeLater = () => matched;
+      inheritAgents(ctx);
+      agentsBefore(ctx, headers);
       runVirtualPatches(ctx);
       if (!request.body) {
         // No body at all (a GET, an empty POST): the body is known and empty.
@@ -644,7 +713,10 @@ export function withRasp<C = unknown>(handler: RouteHandler<C>): RouteHandler<C>
     }
     if (!ctx) return handler(request, context);
     try {
-      return reply(await storage.run(ctx, () => handler(request, context)));
+      const res = await storage.run(ctx, () => handler(request, context));
+      // SHIELD: AI attack agents — scored before the headers are copied, so a mark's verdict goes out on this Response.
+      if (res && typeof res.status === 'number') agentsAfter(ctx, res.status);
+      return reply(res);
     } catch (e) {
       if (e instanceof RaspBlockedError) return reply(blockedResponse(e));
       throw e;

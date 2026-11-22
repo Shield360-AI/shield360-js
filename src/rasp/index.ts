@@ -21,6 +21,8 @@ import { parseEdgeKeys } from './edge-context';
 import { join } from 'path';
 import { runBaseline } from './baseline';
 import { parseDeception } from './deception';
+// SHIELD: AI attack agents (README "AI attack agents").
+import { parseAttackAgents } from './attack-agents';
 import { parsePublicKeys, RaspConfigClient, type RaspClaims } from './config-client';
 import {
   applicationName,
@@ -123,6 +125,8 @@ export function toRemote(c: RaspClaims): RemoteConfig {
     deception: parseDeception(c.deception),
     // SHIELD: protection triangle — the environment's Edge context keys.
     edgeKeys: parseEdgeKeys(c.edgeContext),
+    // SHIELD: AI attack agents — absent or not an object: the local option.
+    attackAgents: c.attackAgents && typeof c.attackAgents === 'object' && !Array.isArray(c.attackAgents) ? parseAttackAgents(c.attackAgents) : null,
   };
 }
 
@@ -174,6 +178,7 @@ export function initRasp(option: boolean | RaspOptions | undefined, ctx: RaspIni
       attacks: o.attacks,
       allow: o.allow,
       modelOutput: o.modelOutput,
+      attackAgents: o.attackAgents,
       // No pinned key while a remote config was expected: built-in defaults, monitor only.
       monitorOnly: unpinned,
       env,
@@ -276,7 +281,11 @@ export function raspActive(): boolean {
 }
 
 export { applicationName as raspApplicationName, setMonitorOnly };
-export { RaspBlockedError, RaspBlockedError as Shield360RaspBlocked, blockBody, BLOCK_MESSAGE, ATTACK_TYPES } from './types';
+export { RaspBlockedError, RaspBlockedError as Shield360RaspBlocked, RaspDeterredError, blockBody, BLOCK_MESSAGE, ATTACK_TYPES } from './types';
+// SHIELD: AI attack agents.
+export { identifyRaspUser } from './agents';
+export { parseAttackAgents, attackFingerprint, findCallbackDomain, clientKey as attackClientKey, DEFAULT_ATTACK_AGENTS } from './attack-agents';
+export type { AttackAgentConfig, AttackKind, AttackReason, AttackMark } from './attack-agents';
 export type { RaspOptions, RaspMode, AttackType, RaspInput, Finding, ConfigPublicKey } from './types';
 export type { RaspExpressOptions } from './middleware';
 export { raspExpress, raspExpressErrorHandler, raspFastify, raspKoa, raspHttp, withRasp, recordRequestBody, isRaspBlocked, sendBlocked, blockedResponse } from './middleware';

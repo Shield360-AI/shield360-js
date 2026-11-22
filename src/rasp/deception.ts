@@ -12,6 +12,9 @@
 import { eventRouteOf } from './context';
 import { deceptionConfig, deceptionMode, reportDeception } from './engine';
 import { RaspBlockedError } from './types';
+// SHIELD: AI attack agents — the tripwire, decoy scoring and the tripwire page (agents.ts).
+import { agentsDecoy, checkTripwire } from './agents';
+import type { HeaderMap } from './attack-agents';
 
 export type DeceptionConfig = { paths: string[]; action: 'block' | 'monitor'; ttlSeconds: number };
 
@@ -172,10 +175,10 @@ export function setSuspiciousTable(t: SuspiciousTable): void {
 }
 
 /** A request as deception sees it: the raw target (path and query as received) and the client address `request.ip` uses. */
-export type DeceptionRequest = { framework: string; method: string; url: string; ip?: string };
+export type DeceptionRequest = { framework: string; method: string; url: string; ip?: string; headers?: HeaderMap };
 
 /** What the adapter does: go on, answer its not-found, or answer the block response. */
-export type DeceptionOutcome = { notFound?: true; blocked?: RaspBlockedError };
+export type DeceptionOutcome = { notFound?: true; blocked?: RaspBlockedError; page?: string };
 
 const PASS: DeceptionOutcome = {};
 
@@ -186,6 +189,9 @@ const PASS: DeceptionOutcome = {};
  */
 export function checkDeception(r: DeceptionRequest): DeceptionOutcome {
   try {
+    // SHIELD: AI attack agents — the tripwire URL is answered first (README "AI attack agents").
+    const trip = checkTripwire(r);
+    if (trip) return trip;
     const cfg = deceptionConfig();
     if (!cfg) return PASS;
     const mode = deceptionMode();
@@ -196,7 +202,9 @@ export function checkDeception(r: DeceptionRequest): DeceptionOutcome {
     if (decoy !== null) {
       if (r.ip) table.mark(r.ip, cfg.ttlSeconds);
       reportDeception(HIT_RULE, block, { ...extra, route: decoy });
-      return { notFound: true };
+      // SHIELD: AI attack agents — a decoy hit adds to the behavior score; the 404 may carry the tripwire page.
+      const page = agentsDecoy(r);
+      return page ? { notFound: true, page } : { notFound: true };
     }
     if (!r.ip || !table.isMarked(r.ip)) return PASS;
     const q = r.url.indexOf('?');

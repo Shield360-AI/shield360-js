@@ -48,6 +48,20 @@ export type RaspContext = {
   uploads?: import('./upload-taint').RequestUpload[];
   /** SHIELD: uploads — the request is multipart/form-data (the fs hook inspects the streams it writes). */
   multipart?: boolean;
+  /** SHIELD: AI attack agents — the signed-in user the app named (identifyRaspUser). */
+  user?: string;
+  /** SHIELD: AI attack agents — a RASP finding happened in this request (behavior score). */
+  agentFinding?: boolean;
+  /** SHIELD: AI attack agents — Shield360 answered this request itself (block): its status is not scored. */
+  ownBlock?: boolean;
+  /** SHIELD: AI attack agents — the before-handler check ran / the response was scored. */
+  agentsChecked?: boolean;
+  agentsScored?: boolean;
+  /** SHIELD: AI attack agents — headers, for the after-handler scoring; and the matched route, read when the app answers. */
+  agentHeaders?: Record<string, string | string[] | undefined>;
+  routeLater?: () => string | undefined;
+  /** SHIELD: AI attack agents — Edge verified the client (never marked). */
+  agentVerified?: boolean;
 };
 
 export const storage = new AsyncLocalStorage<RaspContext>();

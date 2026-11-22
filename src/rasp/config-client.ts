@@ -64,6 +64,8 @@ export type RaspClaims = {
   uploads?: unknown;
   /** SHIELD: protection triangle — { keys: [{ kid, key }] } for Edge's context header and verdicts (edge-context.ts). */
   edgeContext?: unknown;
+  /** SHIELD: AI attack agents — thresholds, deter and tripwire (attack-agents.ts reads them); absent = the local option. */
+  attackAgents?: unknown;
 };
 
 export type PinnedKey = { kid?: string; x: string; key: KeyObject };

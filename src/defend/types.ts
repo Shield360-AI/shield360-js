@@ -11,7 +11,7 @@ export type DefendDecision = (typeof DECISIONS)[number];
  * Auth signature verified. `suspected_ai_agent`: the client hit a trap.
  * The other values come from a classifier passed as `classify`.
  */
-export const CLIENT_TYPES = ['human', 'verified_agent', 'unverified_automation', 'suspected_ai_agent'] as const;
+export const CLIENT_TYPES = ['human', 'verified_agent', 'unverified_automation', 'suspected_ai_agent', 'ai_attack_agent', 'scanner'] as const;
 export type ClientType = (typeof CLIENT_TYPES)[number];
 
 /** A classification with the reasons behind it (each a short code, never a header value). */

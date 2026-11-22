@@ -142,13 +142,25 @@ function geoMatches(rule: DefendRule, f: DefendFacts): boolean {
 }
 
 /** Every condition but the rate. */
+/**
+ * Whether a rule's client types cover a classified client. `scanner` and
+ * `ai_attack_agent` are subtypes of `unverified_automation` (sdk/rasp/README.md
+ * "AI attack agents"): a rule naming `unverified_automation` still matches
+ * attack tools; a rule naming a subtype matches only it.
+ */
+export function clientTypeMatches(ruleTypes: readonly string[], clientType: string | undefined): boolean {
+  if (!clientType) return false;
+  if (ruleTypes.includes(clientType)) return true;
+  return (clientType === 'scanner' || clientType === 'ai_attack_agent') && ruleTypes.includes('unverified_automation');
+}
+
 function matches(rule: DefendRule, input: EngineInput, ruleNets: Net[] | undefined): boolean {
   const f = input.facts;
   if (rule.cidrs && !inAny(f.ip, ruleNets ?? [])) return false;
   if (!geoMatches(rule, f)) return false;
   if (rule.paths && !rule.paths.some((p) => pathUnder(f.path, p))) return false;
   if (rule.methods && !rule.methods.includes(f.method)) return false;
-  if (rule.clientTypes && !(input.classification && rule.clientTypes.includes(input.classification.clientType))) return false;
+  if (rule.clientTypes && !clientTypeMatches(rule.clientTypes, input.classification?.clientType)) return false;
   if (rule.attacks) {
     const seen = rule.attacks.some((a) => a === 'prompt_injection' && input.content.promptInjection);
     if (!seen) return false;

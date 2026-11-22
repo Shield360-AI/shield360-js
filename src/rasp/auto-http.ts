@@ -38,7 +38,9 @@ import { bodyAbsent, captureBody, captureLater, captureNoBody, captureRequest, r
 import { storage, type RaspContext } from './context';
 import { isActive } from './engine';
 import { checkDeception } from './deception';
-import { frameworkServes, sendBlocked, sendNotFound } from './middleware';
+// SHIELD: AI attack agents — the before-handler check and the status watch (agents.ts).
+import { agentsBefore, watchStatus } from './agents';
+import { frameworkServes, sendBlocked, sendNotFound, sendTripwirePage } from './middleware';
 import { RaspBlockedError } from './types';
 
 const PATCHED = Symbol.for('shield360.rasp.autoHttp');
@@ -60,7 +62,7 @@ const peerOf = (req: IncomingMessage): string | undefined => {
 };
 
 /** The request's context, or `blocked` when a virtual patch blocks, or nothing when capture failed. */
-function capture(req: IncomingMessage, deceptionDone: boolean): { ctx?: RaspContext; blocked?: RaspBlockedError } {
+function capture(req: IncomingMessage, res: ServerResponse, deceptionDone: boolean): { ctx?: RaspContext; blocked?: RaspBlockedError } {
   try {
     const ctx = captureRequest({ framework: 'http', method: req.method || 'GET', url: req.url || '/', headers: req.headers, ip: peerOf(req) });
     ctx.auto = true;
@@ -77,6 +79,9 @@ function capture(req: IncomingMessage, deceptionDone: boolean): { ctx?: RaspCont
       captureLater(ctx, read);
       if (bodyAbsent(req.headers, req.httpVersionMajor)) captureNoBody(ctx);
     }
+    // SHIELD: AI attack agents — a framework adapter on the same response takes the watch over with its own route.
+    watchStatus(res, ctx);
+    agentsBefore(ctx, req.headers);
     runVirtualPatches(ctx);
     return { ctx };
   } catch (e) {
@@ -132,9 +137,10 @@ function wrap(original: Emit): Emit {
     // A framework app's adapter runs deception with its own client address and not-found.
     const plain = !frameworkServes(this);
     if (plain) {
-      const d = checkDeception({ framework: 'http', method: req.method || 'GET', url: req.url || '/', ip: peerOf(req) });
+      const d = checkDeception({ framework: 'http', method: req.method || 'GET', url: req.url || '/', ip: peerOf(req), headers: req.headers });
       if (d.notFound) {
-        sendNotFound(res);
+        if (d.page) sendTripwirePage(req, res, d.page);
+        else sendNotFound(res);
         return true;
       }
       if (d.blocked) {
@@ -142,7 +148,7 @@ function wrap(original: Emit): Emit {
         return true;
       }
     }
-    const r = capture(req, plain);
+    const r = capture(req, res, plain);
     if (r.blocked) {
       sendBlocked(res, r.blocked);
       return true;

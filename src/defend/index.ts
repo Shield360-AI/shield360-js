@@ -28,7 +28,7 @@ import type { ClientClassification, DefendCallOptions, DefendFacts, DefendMode, 
 
 export * from './types';
 export { parseDefendPolicy, DEFEND_JWS_TYPE, DEFEND_POLICY_PATH } from './policy';
-export { decide, checkContent, RateTable, pathUnder } from './engine';
+export { decide, checkContent, RateTable, pathUnder, clientTypeMatches } from './engine';
 export { factsOf, pathOf, forwardedIp } from './request';
 export { DefendReporter, DEFEND_REPORT_PATH } from './reporter';
 

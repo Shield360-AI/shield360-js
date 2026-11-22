@@ -28,7 +28,8 @@ function claims(deception: unknown, over: Partial<RaspClaims> = {}): RaspClaims 
 function setup(deception: unknown, opts: { attacks?: Record<string, RaspMode>; local?: Record<string, RaspMode>; monitorOnly?: boolean; killSwitch?: boolean; cap?: number } = {}) {
   configureEngine({ enabled: true, applicationName: 'orders-api', attacks: opts.local as any, monitorOnly: opts.monitorOnly, env: {} });
   setEventSink({ add: (e) => events.push(e) });
-  setRemoteConfig(toRemote(claims(deception, { attacks: opts.attacks as any, killSwitch: opts.killSwitch })));
+  // SHIELD: AI attack agents — off here (decoy hits add to its score); attack-agents.test.ts covers the two together.
+  setRemoteConfig(toRemote(claims(deception, { attacks: { ai_attack_agent: 'off', ...opts.attacks } as any, killSwitch: opts.killSwitch })));
   setSuspiciousTable(new SuspiciousTable(opts.cap ?? 10_000, () => now));
 }
 

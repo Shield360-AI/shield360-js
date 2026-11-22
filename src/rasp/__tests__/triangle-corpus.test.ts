@@ -6,10 +6,11 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { edgeSaysSuspect, parseEdgeKeys, pathHash, ReplayCache, signVerdict, verifyEdgeContext, type EdgeContext } from '../edge-context';
+import { RASP_DIR } from './corpus';
 
 type ContextCase = { name: string; header: string; method: string; path: string; requestId: string | null; now: number; replayGroup: string | null; expect: Record<string, unknown> | null };
 type VerdictCase = { name: string; rid: string; act: 'block' | 'flag'; cat: string; src: 'rasp' | 'sdk' | 'defend'; ttl: number; iat: number; expect: string | null };
-const CORPUS = JSON.parse(readFileSync(join(__dirname, '..', '..', '..', '..', 'rasp', 'testdata', 'triangle.json'), 'utf8')) as {
+const CORPUS = JSON.parse(readFileSync(join(RASP_DIR, 'testdata', 'triangle.json'), 'utf8')) as {
   edgeContext: unknown;
   parseKeys: { name: string; config: unknown; kids: string[] }[];
   context: ContextCase[];

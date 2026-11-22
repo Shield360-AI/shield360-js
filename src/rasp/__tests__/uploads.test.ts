@@ -23,10 +23,11 @@ import { hasDoubleExtension, inspectBytes, isServerConfigName, sniffType, typeMi
 import { configureUploads, effectivePolicy, parseUploadsBlock, setRemoteUploads, type UploadOptions } from '../upload-policy';
 import { compileSignature, compileSignatures, matchSample } from '../upload-signatures';
 import { rememberLocation, resetLocations, uploadAt } from '../upload-taint';
+import { RASP_DIR } from './corpus';
 
-const REPO = join(__dirname, '..', '..', '..', '..', '..');
+// SHIELD: sdk/rasp in the monorepo, rasp/ in the public mirror (corpus.ts RASP_DIR).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const corpus: any = JSON.parse(fs.readFileSync(join(REPO, 'sdk/rasp/testdata/uploads.json'), 'utf8'));
+const corpus: any = JSON.parse(fs.readFileSync(join(RASP_DIR, 'testdata/uploads.json'), 'utf8'));
 
 // ---- fixtures -------------------------------------------------------------------
 
@@ -99,11 +100,11 @@ const rule = (data: Buffer, name?: string, contentType?: string) => inspectBytes
 
 describe('conformance (testdata/uploads.json)', () => {
   it('signatures file is byte-identical to sdk/rasp/rules', () => {
-    expect(fs.readFileSync(join(__dirname, '..', 'data', 'upload-signatures.json')).equals(fs.readFileSync(join(REPO, 'sdk/rasp/rules/upload-signatures.json')))).toBe(true);
+    expect(fs.readFileSync(join(__dirname, '..', 'data', 'upload-signatures.json')).equals(fs.readFileSync(join(RASP_DIR, 'rules/upload-signatures.json')))).toBe(true);
   });
 
   it('every built-in signature compiles', () => {
-    const raw = JSON.parse(fs.readFileSync(join(REPO, 'sdk/rasp/rules/upload-signatures.json'), 'utf8')).rules;
+    const raw = JSON.parse(fs.readFileSync(join(RASP_DIR, 'rules/upload-signatures.json'), 'utf8')).rules;
     for (const [i, r] of raw.entries()) expect([r.id, compileSignature(r, i).ok]).toEqual([r.id, true]);
   });
 

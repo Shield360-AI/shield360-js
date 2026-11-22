@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { BreadthCounter, classifyClient } from '../index';
 
@@ -53,6 +53,8 @@ describe('BreadthCounter', () => {
 
 it('keeps a byte-identical copy of the shared signatures', () => {
   const here = readFileSync(join(__dirname, '..', 'signatures.json'));
-  const shared = readFileSync(join(__dirname, '..', '..', '..', '..', 'client-type', 'signatures.json'));
+  // SHIELD: sdk/client-type in the monorepo, client-type/ at the public mirror's root.
+  const sharedPath = [join(__dirname, '..', '..', '..', '..', 'client-type', 'signatures.json'), join(__dirname, '..', '..', '..', 'client-type', 'signatures.json')].find((p) => existsSync(p));
+  const shared = readFileSync(sharedPath ?? join(__dirname, '..', '..', '..', '..', 'client-type', 'signatures.json'));
   expect(here.equals(shared)).toBe(true);
 });

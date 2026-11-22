@@ -492,8 +492,113 @@
       }
     },
     {
+      "name": "valid, a trusted device (dk, dt)",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfZGV2aWNlXzAxIiwiaWF0IjoxODAwMDAwMDAwLCJleHAiOjE4MDAwMDAwMzAsIm0iOiJQT1NUIiwicGgiOiIwZWY3Nzg3Mjc2YjI3ZWIzIiwiY3QiOiJzdXNwZWN0ZWRfYWdlbnQiLCJyaXNrIjo4MCwidHJhcCI6MiwiZmwiOnRydWUsImRrIjoiZGV2aWNlLTAxMjM0NTY3ODkiLCJkdCI6ImhhcmR3YXJlIn0.SZjTEV2qHo3VYFq31Nr2pT08-PvUUqHPHH1gxCB-syc",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_device_01",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": {
+        "rid": "req_device_01",
+        "iat": 1800000000,
+        "exp": 1800000030,
+        "m": "POST",
+        "ph": "0ef7787276b27eb3",
+        "ct": "suspected_agent",
+        "risk": 80,
+        "trap": 2,
+        "fl": true,
+        "dk": "device-0123456789",
+        "dt": "hardware"
+      }
+    },
+    {
+      "name": "valid, a software device with a security session",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfZGV2aWNlXzAyIiwiaWF0IjoxODAwMDAwMDAwLCJleHAiOjE4MDAwMDAwMzAsIm0iOiJQT1NUIiwicGgiOiIwZWY3Nzg3Mjc2YjI3ZWIzIiwiY3QiOiJzdXNwZWN0ZWRfYWdlbnQiLCJyaXNrIjo4MCwidHJhcCI6MiwiZmwiOnRydWUsImRrIjoiY2x4MGFiY2RlZmdoMTIzNDU2Nzh3eHl6IiwiZHQiOiJzb2Z0d2FyZSIsInNpZCI6IkFiQ2RFZkdoSWpLbE1uT3BRclN0Xy0ifQ.uoHvaiFRJ5AQcbtRVf4FxJEcbr4-PdBk-6W2LWkjHZI",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_device_02",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": {
+        "rid": "req_device_02",
+        "iat": 1800000000,
+        "exp": 1800000030,
+        "m": "POST",
+        "ph": "0ef7787276b27eb3",
+        "ct": "suspected_agent",
+        "risk": 80,
+        "trap": 2,
+        "fl": true,
+        "dk": "clx0abcdefgh12345678wxyz",
+        "dt": "software",
+        "sid": "AbCdEfGhIjKlMnOpQrSt_-"
+      }
+    },
+    {
       "name": "bad MAC",
       "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlfQ.dvfzJBIYcDQOYtZyKqmf3NW95fKDhsSv09e7_iSAAAA",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "dk too short",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJkayI6ImRldi0xMjMifQ.VAqvDtBIVZ34ZHTgmvf7NH6sS8s2-KcKhjCf4svyTPo",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "dk with a bad character",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJkayI6ImRldmljZS4wMTIzNDU2Nzg5In0.qGXx-JlG44p2uxt6wwt7q5q0cdFIasHAq7mf7Qv4Z5E",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "dk not a string",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJkayI6MTIzNDU2Nzh9.WUT7G3EDx5QA5no8Zd4pPUzi_LUH9tb85LXZy5SaFSw",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "dt not a trust level",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJkayI6ImRldmljZS0wMTIzNDU2Nzg5IiwiZHQiOiJ0cnVzdGVkIn0.1eKjG-8gZY-RpUf2LF_QvOvEFzG_xleAz9n44P3OK_s",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "dt upper case",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJkayI6ImRldmljZS0wMTIzNDU2Nzg5IiwiZHQiOiJIYXJkd2FyZSJ9.xUYu-FJiaGdSndm2WkIFIyV7CqvJMQ9FWAn0JoXp3Mw",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "dt not a string",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJkdCI6WyJzb2Z0d2FyZSJdfQ.irOTlXArLK4EU7-O0EpT9Kzhi2yvZPIgCmu03B6Vpck",
       "method": "POST",
       "path": "/api/orders",
       "requestId": "req_0123456789",

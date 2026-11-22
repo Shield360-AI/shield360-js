@@ -30,9 +30,12 @@ const KID = /^[0-9a-f]{8}$/;
 const RID = /^[A-Za-z0-9_-]{8,64}$/;
 const CAT = /^[a-z][a-z0-9_]{0,39}$/;
 const CLIENTS = new Set(['human', 'verified_crawler', 'verified_agent', 'automation', 'suspected_agent', 'unknown']);
-const CONTEXT_KEYS = new Set(['rid', 'iat', 'exp', 'm', 'ph', 'ct', 'risk', 'waf', 'trap', 'fl', 'tp', 'rt']);
+const CONTEXT_KEYS = new Set(['rid', 'iat', 'exp', 'm', 'ph', 'ct', 'risk', 'waf', 'trap', 'fl', 'tp', 'rt', 'sid', 'fp']);
 // A red team run id (rt): Edge verified the request's X-Shield360-Red-Team header.
 const RUN = /^[a-z0-9]{8,40}$/;
+// Edge's security session (sid, the s360_sid cookie) and request fingerprint (fp).
+const SID = /^[A-Za-z0-9_-]{22}$/;
+const FP = /^[0-9a-f]{16}$/;
 const VERDICT_KEYS = new Set(['rid', 'iat', 'act', 'cat', 'src', 'ttl']);
 
 export type EdgeKey = { kid: string; key: Buffer };
@@ -51,6 +54,10 @@ export type EdgeContext = {
   tp?: string;
   /** The red team run Edge verified this request belongs to (its X-Shield360-Red-Team header). */
   rt?: string;
+  /** Edge's security session (the s360_sid cookie), on routes with Edge's security cookie on. */
+  sid?: string;
+  /** Edge's request fingerprint, on routes with Edge's security cookie on. */
+  fp?: string;
 };
 
 export type EdgeVerdict = { rid: string; iat: number; act: 'block' | 'flag'; cat: string; src: 'rasp' | 'sdk' | 'defend'; ttl: number };
@@ -133,8 +140,10 @@ export function verifyEdgeContext(keys: EdgeKey[], value: unknown, req: { method
     if (typeof c.risk !== 'number' || c.risk < 0 || c.risk > 100 || typeof c.trap !== 'number' || c.trap < 0 || c.trap > 4) return null;
     if (c.waf !== undefined && (!Array.isArray(c.waf) || c.waf.length > 16 || !c.waf.every((w) => typeof w === 'string' && CAT.test(w)))) return null;
     if (c.rt !== undefined && (typeof c.rt !== 'string' || !RUN.test(c.rt))) return null;
+    if (c.sid !== undefined && (typeof c.sid !== 'string' || !SID.test(c.sid))) return null;
+    if (c.fp !== undefined && (typeof c.fp !== 'string' || !FP.test(c.fp))) return null;
     if (cache && !cache.first(`c:${c.rid}`, (c.exp + SKEW_S) * 1000, nowMs)) return null;
-    return { rid: c.rid, iat: c.iat, exp: c.exp, m: c.m, ph: c.ph, ct: c.ct, risk: c.risk, trap: c.trap, fl: c.fl === true, ...(c.waf ? { waf: c.waf } : {}), ...(typeof c.tp === 'string' ? { tp: c.tp } : {}), ...(c.rt ? { rt: c.rt } : {}) };
+    return { rid: c.rid, iat: c.iat, exp: c.exp, m: c.m, ph: c.ph, ct: c.ct, risk: c.risk, trap: c.trap, fl: c.fl === true, ...(c.waf ? { waf: c.waf } : {}), ...(typeof c.tp === 'string' ? { tp: c.tp } : {}), ...(c.rt ? { rt: c.rt } : {}), ...(c.sid ? { sid: c.sid } : {}), ...(c.fp ? { fp: c.fp } : {}) };
   } catch {
     return null;
   }

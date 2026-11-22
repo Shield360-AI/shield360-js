@@ -449,8 +449,111 @@
       }
     },
     {
+      "name": "valid, a security session and fingerprint (sid, fp)",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfaWRlbnRpdHlfMDEiLCJpYXQiOjE4MDAwMDAwMDAsImV4cCI6MTgwMDAwMDAzMCwibSI6IlBPU1QiLCJwaCI6IjBlZjc3ODcyNzZiMjdlYjMiLCJjdCI6InN1c3BlY3RlZF9hZ2VudCIsInJpc2siOjgwLCJ0cmFwIjoyLCJmbCI6dHJ1ZSwic2lkIjoiQWJDZEVmR2hJaktsTW5PcFFyU3RfLSIsImZwIjoiMDEyMzQ1Njc4OWFiY2RlZiJ9.5SMMSaY35o7Viin8aoxNt-mJ8vidEt1s--lef_9WpuE",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_identity_01",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": {
+        "rid": "req_identity_01",
+        "iat": 1800000000,
+        "exp": 1800000030,
+        "m": "POST",
+        "ph": "0ef7787276b27eb3",
+        "ct": "suspected_agent",
+        "risk": 80,
+        "trap": 2,
+        "fl": true,
+        "sid": "AbCdEfGhIjKlMnOpQrSt_-",
+        "fp": "0123456789abcdef"
+      }
+    },
+    {
+      "name": "valid, a fingerprint only (fp)",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfaWRlbnRpdHlfMDIiLCJpYXQiOjE4MDAwMDAwMDAsImV4cCI6MTgwMDAwMDAzMCwibSI6IlBPU1QiLCJwaCI6IjBlZjc3ODcyNzZiMjdlYjMiLCJjdCI6InN1c3BlY3RlZF9hZ2VudCIsInJpc2siOjgwLCJ0cmFwIjoyLCJmbCI6dHJ1ZSwiZnAiOiJmZWRjYmE5ODc2NTQzMjEwIn0.wjTYNsyKOY5B2TI-fD28E5ievg0P6V3yhv6ti_rybQU",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_identity_02",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": {
+        "rid": "req_identity_02",
+        "iat": 1800000000,
+        "exp": 1800000030,
+        "m": "POST",
+        "ph": "0ef7787276b27eb3",
+        "ct": "suspected_agent",
+        "risk": 80,
+        "trap": 2,
+        "fl": true,
+        "fp": "fedcba9876543210"
+      }
+    },
+    {
       "name": "bad MAC",
       "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlfQ.dvfzJBIYcDQOYtZyKqmf3NW95fKDhsSv09e7_iSAAAA",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "sid not 22 base64url characters",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJzaWQiOiJBYkNkRWZHaElqS2xNbk9wUXJTdC4tIn0.i1_3n6hdHEqFwrx8P5i1h0XMtUBfGgw3loDW-_b9YvA",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "sid too long",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJzaWQiOiJBYkNkRWZHaElqS2xNbk9wUXJTdF8teCJ9._E4zSKPsGrmKcs96RT8PB1JzDxq-gPcgcTj-mRq7le0",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "sid not a string",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJzaWQiOjEyMzQ1Njc4OTB9.TlfprenbucZVT43G6Co59HzJn17mn4i-gZ2sTPghzpA",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "fp upper-case hex",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJmcCI6IjAxMjM0NTY3ODlBQkNERUYifQ.Aemcn6jXtO0Pl4byBHAcAn65DNG3zn23BrW7xln3FSo",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "fp too short",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJmcCI6IjAxMjM0NTY3ODlhYmNkZSJ9.OhmGYIS9sP8RjD4K079kTPc39sVVTgOFeufnNhwEjmw",
+      "method": "POST",
+      "path": "/api/orders",
+      "requestId": "req_0123456789",
+      "now": 1800000000,
+      "replayGroup": null,
+      "expect": null
+    },
+    {
+      "name": "fp not a string",
+      "header": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiZXhwIjoxODAwMDAwMDMwLCJtIjoiUE9TVCIsInBoIjoiMGVmNzc4NzI3NmIyN2ViMyIsImN0Ijoic3VzcGVjdGVkX2FnZW50IiwicmlzayI6ODAsInRyYXAiOjIsImZsIjp0cnVlLCJmcCI6WyIwMTIzNDU2Nzg5YWJjZGVmIl19.Ei1IM2sFc92EmAtyllyfKPwUoXd-n3e_MTFWeVid65g",
       "method": "POST",
       "path": "/api/orders",
       "requestId": "req_0123456789",

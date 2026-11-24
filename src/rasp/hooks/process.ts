@@ -25,6 +25,9 @@ import { detectArgv, detectCommand, detectShellSpawn, shellScriptOf } from '../d
 import { allowLists, check, isActive, strongest } from '../engine';
 import type { Finding, RaspInput } from '../types';
 import { commandWords, detectUploadExec } from '../upload-taint';
+// Behavior profiles (README "Behavior profiles").
+import { observeWith } from '../behavior';
+import { processShapes } from '../behavior-shapes';
 
 export type ProcessApi = 'exec' | 'execSync' | 'spawn' | 'spawnSync' | 'execFile' | 'execFileSync' | 'fork';
 
@@ -101,6 +104,11 @@ function inspect(api: ProcessApi, values: unknown[]): void {
       const backdoor = detectUploadExec('command' in target ? commandWords(target.command) : target.argv);
       // The strongest decision wins: a finding in monitor or off mode never hides one that blocks.
       return strongest(...processFindings(target, ctx ? inputsOf(ctx) : [], Boolean(ctx?.inRequest), allowLists().commands), backdoor);
+    });
+    // Behavior profiles: the executable and the programs a command line runs, after the checks.
+    observeWith('process', `child_process.${api}`, () => {
+      const target = processTarget(api, values);
+      return target ? processShapes(target) : null;
     });
   } finally {
     checking = false;

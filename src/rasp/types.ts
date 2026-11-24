@@ -21,7 +21,8 @@ export type AttackType =
   | 'deception'
   | 'malicious_upload'
   | 'upload_backdoor'
-  | 'ai_attack_agent';
+  | 'ai_attack_agent'
+  | 'novel_behavior';
 
 export const ATTACK_TYPES: readonly AttackType[] = [
   'sql_injection',
@@ -43,6 +44,7 @@ export const ATTACK_TYPES: readonly AttackType[] = [
   'malicious_upload',
   'upload_backdoor',
   'ai_attack_agent',
+  'novel_behavior',
 ];
 
 /** Attack types that only ever report: `block` is treated as `monitor` (README "Attack types and modes"). */
@@ -70,6 +72,8 @@ export type Finding = {
   mode?: RaspMode;
   /** Upload findings: what the event says about the file (README "Upload event attributes"); never content or a file name. */
   upload?: UploadAttrs;
+  /** Behavior profile findings (README "Behavior profiles"): the computed shape, never a raw value. */
+  behavior?: { shape: string; profileVersion: string };
 };
 
 /** README "Upload event attributes". */

@@ -437,6 +437,8 @@ class Shield360 extends BaseShield360 {
         url: resolved.shield360Url,
         apiKey: resolved.shield360ApiKey,
         sdkVersion: SDK_VERSION,
+        // SHIELD: the app's release, so behavior profiles relearn on app releases, not SDK upgrades.
+        appVersion: buildAttributes[ATTR_SERVICE_VERSION],
         otlpEndpoint: resolved.otlpEndpoint,
       });
 

@@ -66,6 +66,8 @@ export type RaspClaims = {
   edgeContext?: unknown;
   /** SHIELD: AI attack agents — thresholds, deter and tripwire (attack-agents.ts reads them); absent = the local option. */
   attackAgents?: unknown;
+  /** Behavior profiles — mode, block categories, profile, deny list (behavior.ts reads them); absent = off. */
+  behavior?: unknown;
 };
 
 export type PinnedKey = { kid?: string; x: string; key: KeyObject };

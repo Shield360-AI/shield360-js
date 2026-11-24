@@ -49,6 +49,8 @@ import type { RaspOptions } from './types';
 // SHIELD: uploads — inspection, deep scan and backdoor checks (README "Uploads").
 import { configureUploads, setRemoteUploads, uploadConfig } from './upload-policy';
 import { runConnectionTest, setReputationClient } from './upload-deep';
+// Behavior profiles (README "Behavior profiles").
+import { BehaviorReporter, resetBehavior, setBehaviorConfig, startBehaviorClock } from './behavior';
 
 const COMPONENTS_EVERY_MS = 24 * 60 * 60 * 1000;
 
@@ -58,6 +60,8 @@ export type RaspInitContext = {
   url?: string;
   apiKey?: string;
   sdkVersion?: string;
+  /** The app's own version (service.version), sent as the behavior report's `app_version`. */
+  appVersion?: string;
   /** The OTLP endpoint the SDK exports to: always allowed outbound, like `url`. */
   otlpEndpoint?: string;
   env?: NodeJS.ProcessEnv;
@@ -106,7 +110,7 @@ export function resetRaspWarnings(): void {
   warnedUnpinned = false;
 }
 
-type Runtime = { client?: RaspConfigClient; reporter?: RaspReporter; componentsTimer?: ReturnType<typeof setInterval> };
+type Runtime = { client?: RaspConfigClient; reporter?: RaspReporter; behavior?: BehaviorReporter; componentsTimer?: ReturnType<typeof setInterval> };
 let runtime: Runtime = {};
 
 export function toRemote(c: RaspClaims): RemoteConfig {
@@ -155,6 +159,10 @@ export async function shutdownRasp(): Promise<void> {
   if (r.componentsTimer) clearInterval(r.componentsTimer);
   setEventSink(undefined);
   setIastSink(undefined);
+  // The last observations are taken now (stop reads them synchronously), then the behavior state is dropped.
+  const lastBehavior = r.behavior?.stop();
+  resetBehavior();
+  await lastBehavior;
   await r.reporter?.stop();
 }
 
@@ -187,6 +195,8 @@ export function initRasp(option: boolean | RaspOptions | undefined, ctx: RaspIni
     configureUploads(o.uploads);
     setReputationClient(ctx.url && ctx.apiKey ? { url: ctx.url, apiKey: ctx.apiKey, fetchImpl: ctx.fetchImpl } : null);
     if (!o.enabled) return false;
+    resetBehavior({ onWarning: (reason) => console.warn(`Shield360 RASP: the signed config's behavior block was refused (${reason}); the last good one stays in force.`) });
+    startBehaviorClock();
     installProcessHooks();
     installFsHooks();
     installHttpHooks({ alwaysAllowedHosts: alwaysAllowedHosts([ctx.url, ctx.otlpEndpoint]) });
@@ -209,6 +219,16 @@ export function initRasp(option: boolean | RaspOptions | undefined, ctx: RaspIni
       setEventSink(reporter);
       setIastSink(reporter);
       runtime.reporter = reporter;
+      runtime.behavior = new BehaviorReporter({
+        url: ctx.url,
+        apiKey: ctx.apiKey,
+        applicationName: ctx.applicationName,
+        sdkVersion: ctx.sdkVersion,
+        appVersion: ctx.appVersion,
+        environment: ctx.environment,
+        fetchImpl: ctx.fetchImpl,
+      });
+      runtime.behavior.start();
       // SHIELD: runtime SCA — when the runtime package report runs it already sends these.
       if (o.components !== false && !runtimePackagesActive()) {
         const report = () => {
@@ -249,6 +269,8 @@ export function initRasp(option: boolean | RaspOptions | undefined, ctx: RaspIni
           setIastRemote(claims ? { iast: claims.iast, iastSampleRate: claims.iastSampleRate, version: claims.version } : undefined);
           // The platform's sink rules replace the built-in list when present.
           setSinkRules(remote?.sinks ? parseSinkRules(remote.sinks) : BUILT_IN_SINKS);
+          // Absent (or no config in force): off; a block that breaks the contract keeps the last good one.
+          setBehaviorConfig(claims?.behavior);
         },
         onWarning: warn,
         fetchImpl: ctx.fetchImpl,

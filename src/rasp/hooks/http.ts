@@ -16,6 +16,9 @@ import { currentContext, inputsOf } from '../context';
 import { check, isActive, allowLists, strongest } from '../engine';
 import { detectOutbound, detectSsrf } from '../detect';
 import { RaspBlockedError, type RaspInput } from '../types';
+// Behavior profiles (README "Behavior profiles").
+import { observeWith } from '../behavior';
+import { outboundShape } from '../behavior-shapes';
 
 type Saved = { owner: object; key: string; descriptor: PropertyDescriptor; wrapper: unknown };
 type Target = { url: string; host: string; options: http.RequestOptions; callback: unknown };
@@ -71,6 +74,8 @@ function prepare(values: unknown[], protocol: string, sink: string, always: stri
     const ctx = currentContext();
     const inputs = ctx ? inputsOf(ctx).map((input: RaspInput) => ({ ...input })) : [];
     check(sink, () => strongest(detectOutbound(parsed.url, allowLists().outboundHosts, always), detectSsrf(parsed.url, inputs, [])));
+    // Behavior profiles: Shield360's own hosts are not app behavior.
+    observeWith('outbound', sink, () => (always.includes(parsed.host.toLowerCase()) ? null : outboundShape(parsed.url)));
     if (inputs.length && !isIP(parsed.host)) {
       const lookup = parsed.options.lookup || dns.lookup;
       parsed.options.lookup = function (this: unknown, hostname, options, callback) {
@@ -152,6 +157,7 @@ export function installHttpHooks(opts: { alwaysAllowedHosts: string[] }): boolea
         const ctx = currentContext();
         inputs = ctx ? inputsOf(ctx).map((input: RaspInput) => ({ ...input })) : [];
         check('fetch', () => strongest(detectOutbound(url!.href, allowLists().outboundHosts, always), detectSsrf(url!.href, inputs, [])));
+        observeWith('outbound', 'fetch', () => (always.includes(url!.hostname.replace(/^\[|\]$/g, '').toLowerCase()) ? null : outboundShape(url!.href)));
       });
       if (url && inputs.length && !isIP(url.hostname.replace(/^\[|\]$/g, ''))) {
         try {

@@ -192,6 +192,19 @@ export function overriddenMode(attack: AttackType, m: RaspMode): RaspMode {
 
 const findingMode = (f: Finding): RaspMode => (f.mode ? overriddenMode(f.attack, f.mode) : modeFor(f.attack));
 
+/**
+ * The most behavior profiles may do (README "Behavior profiles"): off when
+ * RASP is not active or `novel_behavior` is off locally or in the signed
+ * config; monitor when either says monitor or no key is pinned; else block.
+ */
+export function novelBehaviorCap(): RaspMode {
+  if (!isActive()) return 'off';
+  const local = state.local.attacks.novel_behavior;
+  const remote = state.remote?.attacks.novel_behavior;
+  if (local === 'off' || remote === 'off') return 'off';
+  return local === 'monitor' || remote === 'monitor' || state.monitorOnly ? 'monitor' : 'block';
+}
+
 /** The effective mode of an attack type: off when RASP is not active. */
 export function modeFor(attack: AttackType): RaspMode {
   if (!isActive()) return 'off';
@@ -313,7 +326,7 @@ const safeRoute = (r: string) => {
 const safeMethod = (m: string | undefined) => (m && /^[A-Za-z]{3,10}$/.test(m) ? m.toUpperCase() : '');
 
 export type Decision = 'blocked' | 'monitored';
-export type FindingExtra = { framework?: string; route?: string; method?: string; path?: string; tightenedByEdge?: boolean; agent?: AttackMark };
+export type FindingExtra = { framework?: string; route?: string; method?: string; path?: string; tightenedByEdge?: boolean; agent?: AttackMark; eventId?: string };
 
 const UPLOAD_TYPE = /^[a-z0-9_]{1,16}$/;
 const UPLOAD_SIGNATURE = /^[A-Za-z0-9._:/-]{1,128}$/;
@@ -373,6 +386,11 @@ function emit(f: Finding, sink: string, extra: FindingExtra, decision: Decision,
       attrs['shield360.rasp.client_kind'] = extra.agent.kind;
       attrs['shield360.rasp.reason'] = extra.agent.reason;
     }
+    // Behavior profiles: the shape (already a template, masked again here) and the profile it was compared with.
+    if (f.behavior && f.attack === 'novel_behavior') {
+      opt('shield360.rasp.shape', maskText(f.behavior.shape, 200));
+      opt('shield360.rasp.profile_version', /^[A-Za-z0-9._:-]{1,128}$/.test(f.behavior.profileVersion) ? f.behavior.profileVersion : undefined);
+    }
     state.sink?.add({ name: 'shield360.rasp.event', time: new Date().toISOString(), attrs }, [f.attack, f.rule, sink, route, decision].join('\u0000'));
   } catch {
     // reporting never breaks the call
@@ -397,7 +415,7 @@ export function handleFinding(f: Finding, sink: string, extra: FindingExtra = {}
   // SHIELD: AI attack agents — a finding feeds the client's behavior score; a block's 403 is never an auth failure.
   if (ctx && !AGENT_EXCLUDED.has(f.attack)) ctx.agentFinding = true;
   if (ctx && decision === 'blocked') ctx.ownBlock = true;
-  const eventId = randomBytes(16).toString('hex');
+  const eventId = extra.eventId ?? randomBytes(16).toString('hex');
   emit(f, sink, { ...extra, ...(tightened ? { tightenedByEdge: true } : {}) }, decision, mode, eventId);
   sendVerdict(f, decision);
   // Custom rules that look at built-in findings; the first blocking decision wins, the built-in one first.
@@ -415,7 +433,7 @@ export function wouldBlock(f: Finding): boolean {
 }
 
 /** SHIELD: AI attack agents — findings of these types do not add to the behavior score. */
-const AGENT_EXCLUDED = new Set<AttackType>(['ai_attack_agent', 'deception', 'baseline']);
+const AGENT_EXCLUDED = new Set<AttackType>(['ai_attack_agent', 'deception', 'baseline', 'novel_behavior']);
 
 /** SHIELD: protection triangle — attacks Edge's view of the client may tighten from monitor to block. */
 const TIGHTEN = new Set<AttackType>(['sql_injection', 'nosql_injection', 'command_injection', 'shell_spawn', 'code_injection', 'path_traversal', 'ssrf', 'deserialization', 'xxe'] as AttackType[]);
@@ -431,7 +449,7 @@ function sendVerdict(f: Finding, decision: Decision): void {
     const ctx = currentContext();
     const keys = state.remote?.edgeKeys;
     if (!ctx?.edge || !ctx.setHeader || ctx.verdictSent || !keys?.length) return;
-    if (f.attack === 'custom_rule' && decision !== 'blocked') return;
+    if ((f.attack === 'custom_rule' || f.attack === 'novel_behavior') && decision !== 'blocked') return;
     const v = signVerdict(keys, { rid: ctx.edge.rid, iat: Math.floor(Date.now() / 1000), act: decision === 'blocked' ? 'block' : 'flag', cat: String(f.attack), src: 'rasp', ttl: decision === 'blocked' ? 3600 : 900 });
     if (!v) return;
     ctx.setHeader(VERDICT_HEADER, v);

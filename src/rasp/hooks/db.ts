@@ -23,6 +23,9 @@ import type { SqlDialect } from '../lexers';
 import { RaspBlockedError } from '../types';
 import { markRaspWrapper } from './marks';
 import { moduleExports } from './esm';
+// Behavior profiles (README "Behavior profiles").
+import { observeWith } from '../behavior';
+import { sqlShape } from '../behavior-shapes';
 
 type Driver = 'pg' | 'mysql2' | 'mysql' | 'sqlite3' | 'better-sqlite3' | 'mssql' | 'tedious'
   | 'oracledb' | 'ibm_db' | 'mongodb';
@@ -83,8 +86,7 @@ function inspect(driver: Driver, method: string, values: unknown[]): void {
     if (!isActive()) return;
     checking = true;
     const ctx = currentContext();
-    if (!ctx) return;
-    check(`db.${driver}.${method}`, () => {
+    if (ctx) check(`db.${driver}.${method}`, () => {
       const inputs = inputsOf(ctx);
       if (driver === 'mongodb') {
         const docs = method === 'aggregate'
@@ -118,9 +120,22 @@ function inspect(driver: Driver, method: string, values: unknown[]): void {
       }
       return finding;
     });
+    // Behavior profiles: every statement, in a request or not, after the checks.
+    if (driver !== 'mongodb') observeBehaviorSql(driver, method, values);
   } catch (error) {
     if (error instanceof RaspBlockedError) throw error;
   } finally { checking = false; }
+}
+
+/** Behavior profiles: the statement's shape (computed only when behavior is on). */
+function observeBehaviorSql(driver: Driver, method: string, values: unknown[]): void {
+  observeWith('sql', `db.${driver}.${method}`, () => {
+    const first = values[0];
+    const field = specs[driver].field;
+    const text = typeof first === 'string' ? first
+      : first && typeof first === 'object' && field ? (first as Record<string, unknown>)[field] : undefined;
+    return typeof text === 'string' && text ? sqlShape(text, specs[driver].dialect) : null;
+  });
 }
 
 /** What RASP wrapped, per prototype and method; one entry however many times patched. */

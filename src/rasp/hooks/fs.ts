@@ -22,6 +22,9 @@ import { RaspBlockedError, type Finding } from '../types';
 // SHIELD: uploads — backdoor checks on writes, renames, copies and chmod, and inspection of streams a multipart request writes.
 import { detectUploadChmod, detectUploadWrite } from '../upload-taint';
 import { isMultipartRequest, watchUploadStream } from '../upload';
+// Behavior profiles (README "Behavior profiles").
+import { observeWith } from '../behavior';
+import { fileShape } from '../behavior-shapes';
 
 const operations = {
   readFile: 'read', readFileSync: 'read', createReadStream: 'read',
@@ -97,6 +100,21 @@ function uploadCheck(api: Api, values: unknown[], op: FileOp): Finding | null {
   return null;
 }
 
+const WRITES: ReadonlySet<FileOp> = new Set<FileOp>(['write', 'append', 'delete', 'rename']);
+
+/** Behavior profiles: the file shapes of one call (a copy reads its source and writes its destination; chmod writes). */
+function fileShapes(api: Api, values: unknown[]): string[] {
+  const op = operations[api] === 'open' ? openOp(values[1]) : operations[api];
+  const out: string[] = [];
+  const first = pathString(values[0]);
+  if (first !== undefined) out.push(fileShape(first, WRITES.has(op) || api === 'chmod' || api === 'chmodSync'));
+  if (api === 'rename' || api === 'renameSync' || api === 'copyFile' || api === 'copyFileSync') {
+    const second = pathString(values[1]);
+    if (second !== undefined) out.push(fileShape(second, true));
+  }
+  return out;
+}
+
 function inspect(api: Api, values: unknown[], promises: boolean): void {
   if (checking || syncDepth > 0) return;
   try {
@@ -127,6 +145,7 @@ function inspect(api: Api, values: unknown[], promises: boolean): void {
       for (const c of checks) if (!(winner && c.finding && c.finding !== winner)) markSeen(ctx, c.path, c.op);
       return winner;
     });
+    observeWith('file', `fs.${promises ? 'promises.' : ''}${api}`, () => fileShapes(api, values));
   } catch (error) {
     if (error instanceof RaspBlockedError) throw error;
   } finally {

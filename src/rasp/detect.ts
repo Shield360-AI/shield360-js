@@ -302,14 +302,14 @@ export function rawUrl(url: string): { scheme: string; host: string } | null {
   return { scheme, host: host.toLowerCase() };
 }
 
-function parseV4(s: string): number[] | null {
+export function parseV4(s: string): number[] | null {
   const p = s.split('.');
   if (p.length !== 4) return null;
   const n = p.map((x) => (/^(0|[1-9]\d{0,2})$/.test(x) ? Number(x) : NaN));
   return n.every((x) => x >= 0 && x <= 255) ? n : null;
 }
 
-function parseV6(s: string): number[] | null {
+export function parseV6(s: string): number[] | null {
   // Returns 16 bytes, or null.
   if (!s.includes(':')) return null;
   let tail: number[] = [];

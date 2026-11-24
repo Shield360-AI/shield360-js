@@ -26,6 +26,9 @@ import { detectCode, detectDeserialization, detectXml, detectXss } from '../dete
 import { RaspBlockedError, type Finding, type RaspInput } from '../types';
 import { markRaspWrapper } from './marks';
 import { moduleExports } from './esm';
+// Behavior profiles (README "Behavior profiles").
+import { observeWith } from '../behavior';
+import { deserShape } from '../behavior-shapes';
 
 type Method = (...args: unknown[]) => unknown;
 /** `descriptor` is the property RASP replaced; absent when RASP added the property. */
@@ -197,25 +200,42 @@ function patch(library: Library, exports: unknown, version?: string): void {
     const module = exports as Record<string, unknown>;
     const methods = library === 'node-serialize' ? ['unserialize'] : library === 'funcster' ? ['deepDeserialize']
       : library === 'js-yaml' ? ['load', 'loadAll'] : ['parseXml', 'parseXmlString'];
-    for (const method of methods) wrap(module, method, values => inspect(`${library}.${method}`, inputs => {
-      if (library === 'node-serialize') return detectDeserialization('node_serialize', String(values[0]), inputs);
-      if (library === 'funcster') {
-        const text = typeof values[0] === 'string' ? values[0] : JSON.stringify(values[0]);
-        return typeof text === 'string' ? detectDeserialization('funcster', text, inputs) : null;
-      }
-      if (typeof values[0] !== 'string') return null;
-      if (library === 'js-yaml') {
-        const options = (method === 'loadAll' && typeof values[1] === 'function' ? values[2] : values[1]) as { schema?: unknown } | undefined;
-        const schema = options?.schema;
-        const major = version ? Number(version.split('.')[0]) : module.DEFAULT_FULL_SCHEMA ? 3 : 4;
-        const unsafe = major < 4 ? !schema || schema === module.DEFAULT_FULL_SCHEMA
-          : Boolean(schema && !['DEFAULT_SCHEMA', 'CORE_SCHEMA', 'JSON_SCHEMA', 'FAILSAFE_SCHEMA'].some(key => schema === module[key]));
-        return unsafe ? detectDeserialization('yaml', values[0], inputs) : null;
-      }
-      const options = values[1] as { noent?: unknown; dtdload?: unknown } | undefined;
-      return detectXml(values[0], inputs, Boolean(options && (options.noent || options.dtdload)));
-    }));
+    // Behavior profiles: what each deserializer is asked to build (XML parsers are not deserializers).
+    const format = library === 'node-serialize' ? 'node_serialize' : library === 'funcster' ? 'funcster' : library === 'js-yaml' ? 'yaml' : '';
+    const observe = (method: string, values: unknown[]) => {
+      if (format) observeWith('deser', `${library}.${method}`, () => deserShape(format, typeof values[0] === 'string' ? values[0] : format === 'funcster' ? safeJson(values[0]) : undefined));
+    };
+    for (const method of methods) wrap(module, method, values => { inspectDeser(library, method, values, module, version); observe(method, values); });
   } catch { /* Optional library or unsupported shape. */ }
+}
+
+function safeJson(v: unknown): string | undefined {
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return undefined;
+  }
+}
+
+function inspectDeser(library: Library, method: string, values: unknown[], module: Record<string, unknown>, version?: string): void {
+  inspect(`${library}.${method}`, inputs => {
+    if (library === 'node-serialize') return detectDeserialization('node_serialize', String(values[0]), inputs);
+    if (library === 'funcster') {
+      const text = typeof values[0] === 'string' ? values[0] : JSON.stringify(values[0]);
+      return typeof text === 'string' ? detectDeserialization('funcster', text, inputs) : null;
+    }
+    if (typeof values[0] !== 'string') return null;
+    if (library === 'js-yaml') {
+      const options = (method === 'loadAll' && typeof values[1] === 'function' ? values[2] : values[1]) as { schema?: unknown } | undefined;
+      const schema = options?.schema;
+      const major = version ? Number(version.split('.')[0]) : module.DEFAULT_FULL_SCHEMA ? 3 : 4;
+      const unsafe = major < 4 ? !schema || schema === module.DEFAULT_FULL_SCHEMA
+        : Boolean(schema && !['DEFAULT_SCHEMA', 'CORE_SCHEMA', 'JSON_SCHEMA', 'FAILSAFE_SCHEMA'].some(key => schema === module[key]));
+      return unsafe ? detectDeserialization('yaml', values[0], inputs) : null;
+    }
+    const options = values[1] as { noent?: unknown; dtdload?: unknown } | undefined;
+    return detectXml(values[0], inputs, Boolean(options && (options.noent || options.dtdload)));
+  });
 }
 function unpatch(exports: unknown): void {
   const methods = registry.get(exports as object);

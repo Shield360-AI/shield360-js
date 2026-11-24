@@ -17,6 +17,8 @@ import { currentContext, inputsOf } from '../context';
 import { detectInclude } from '../detect';
 import { check, isActive, strongest } from '../engine';
 import { detectUploadInclude, locationCount } from '../upload-taint';
+// Behavior profiles (README "Behavior profiles").
+import { observeModule } from '../behavior';
 
 type Require = (this: unknown, id: string) => unknown;
 type Target = { require: Require };
@@ -35,8 +37,9 @@ function inspect(id: unknown, parent: unknown): void {
   try {
     // SHIELD: uploads — loading an uploaded file as code (`backdoor.include`), in a request or not.
     const backdoor = locationCount() ? detectUploadInclude(resolved(id, parent)) : null;
-    if (!ctx?.inRequest && !backdoor) return;
-    check('module.require', () => strongest(backdoor, ctx?.inRequest ? detectInclude(id, inputsOf(ctx)) : null));
+    if (ctx?.inRequest || backdoor) check('module.require', () => strongest(backdoor, ctx?.inRequest ? detectInclude(id, inputsOf(ctx)) : null));
+    // Behavior profiles: a module loaded after start-up, after the checks.
+    observeModule(id);
   } finally {
     checking = false;
   }

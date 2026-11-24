@@ -86,3 +86,34 @@ describe('data store options', () => {
     expect(none).toEqual({});
   });
 });
+
+describe('SHIELD360_IGNORE_INCOMING_PATHS', () => {
+  const { isIgnoredIncomingPath, ignoredIncomingPrefixes, communityOptions: opts } = jest.requireActual('../http-noise');
+  const env = { SHIELD360_IGNORE_INCOMING_PATHS: ' /api/ingest , /api/collector/,bad, /' } as NodeJS.ProcessEnv;
+
+  it('reads comma-separated path prefixes, dropping anything that is not a path', () => {
+    expect(ignoredIncomingPrefixes(env)).toEqual(['/api/ingest', '/api/collector']);
+  });
+
+  it('matches on path-segment boundaries, whatever the query or case', () => {
+    expect(isIgnoredIncomingPath('/api/ingest', env)).toBe(true);
+    expect(isIgnoredIncomingPath('/api/ingest/otlp/v1/traces?x=1', env)).toBe(true);
+    expect(isIgnoredIncomingPath('/API/Collector/device', env)).toBe(true);
+    expect(isIgnoredIncomingPath('/api/ingestion', env)).toBe(false);
+    expect(isIgnoredIncomingPath('/login', env)).toBe(false);
+    expect(isIgnoredIncomingPath('/api/ingest/x', {} as NodeJS.ProcessEnv)).toBe(false);
+  });
+
+  it('leaves ignored paths untraced, like health probes', () => {
+    const prev = process.env.SHIELD360_IGNORE_INCOMING_PATHS;
+    process.env.SHIELD360_IGNORE_INCOMING_PATHS = '/api/ingest';
+    try {
+      const hook = (opts('http') as { ignoreIncomingRequestHook: (r: { url?: string; headers?: Record<string, string> }) => boolean }).ignoreIncomingRequestHook;
+      expect(hook({ url: '/api/ingest/otlp/v1/traces', headers: {} })).toBe(true);
+      expect(hook({ url: '/dashboard', headers: {} })).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.SHIELD360_IGNORE_INCOMING_PATHS;
+      else process.env.SHIELD360_IGNORE_INCOMING_PATHS = prev;
+    }
+  });
+});

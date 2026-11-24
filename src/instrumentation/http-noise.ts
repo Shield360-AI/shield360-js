@@ -23,6 +23,35 @@ export function isHealthProbe(url: string | undefined, userAgent: string | strin
   return HEALTH_PATHS.has(path.toLowerCase());
 }
 
+/**
+ * SHIELD: incoming paths an app asks to leave alone (SHIELD360_IGNORE_INCOMING_PATHS,
+ * comma-separated prefixes, matched on path-segment boundaries: "/api/ingest"
+ * covers "/api/ingest/otlp" but not "/api/ingestion"). Neither traced nor
+ * captured by runtime protection. For machine endpoints that would otherwise
+ * feed back into themselves, such as Shield360's own ingest when Shield360
+ * runs the SDK.
+ */
+export function ignoredIncomingPrefixes(env: NodeJS.ProcessEnv = process.env): string[] {
+  return String(env.SHIELD360_IGNORE_INCOMING_PATHS || '')
+    .split(',')
+    .map((p) => p.trim().replace(/\/+$/, ''))
+    .filter((p) => p.startsWith('/') && p.length > 1);
+}
+
+let cachedPrefixes: { raw: string | undefined; list: string[] } | null = null;
+
+/** Whether an incoming request's path is under one of SHIELD360_IGNORE_INCOMING_PATHS. */
+export function isIgnoredIncomingPath(url: string | undefined, env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env.SHIELD360_IGNORE_INCOMING_PATHS;
+  if (!raw) return false;
+  if (!cachedPrefixes || cachedPrefixes.raw !== raw) cachedPrefixes = { raw, list: ignoredIncomingPrefixes(env) };
+  const path = (url || '').split('?')[0].split('#')[0].toLowerCase();
+  return cachedPrefixes.list.some((p) => {
+    const prefix = p.toLowerCase();
+    return path === prefix || path.startsWith(prefix + '/');
+  });
+}
+
 /** The Shield360 host the SDK reports to, from SHIELD360_URL, or ''. */
 export function shield360Host(env: NodeJS.ProcessEnv = process.env): string {
   try {
@@ -53,7 +82,7 @@ export function communityOptions(name: string): Record<string, unknown> | undefi
       requestHook: httpRequestHook,
       ignoreIncomingRequestHook: (req: { url?: string; headers?: Record<string, string | string[] | undefined> }) => {
         try {
-          return isHealthProbe(req.url, req.headers?.['user-agent']);
+          return isHealthProbe(req.url, req.headers?.['user-agent']) || isIgnoredIncomingPath(req.url);
         } catch {
           return false;
         }

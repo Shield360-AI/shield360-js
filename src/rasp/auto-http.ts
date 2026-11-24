@@ -30,6 +30,7 @@
  * from their own route handlers, so a block raised there is the framework's to
  * map (Express without `raspExpressErrorHandler()` answers a 500).
  */
+import { isIgnoredIncomingPath } from '../instrumentation/http-noise';
 import { EventEmitter } from 'events';
 import http = require('http');
 import https = require('https');
@@ -134,6 +135,8 @@ function wrap(original: Emit): Emit {
     if (event !== 'request' || !isActive()) return original.call(this, event, ...args);
     const req = args[0] as IncomingMessage;
     const res = args[1] as ServerResponse;
+    // SHIELD: paths the app asked to leave alone (SHIELD360_IGNORE_INCOMING_PATHS) are served as they come.
+    if (isIgnoredIncomingPath(req.url)) return original.call(this, event, ...args);
     // A framework app's adapter runs deception with its own client address and not-found.
     const plain = !frameworkServes(this);
     if (plain) {

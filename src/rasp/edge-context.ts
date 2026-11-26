@@ -199,3 +199,24 @@ export function verifyVerdict(keys: EdgeKey[], value: string, rid: string, nowMs
 export function edgeSaysSuspect(c: EdgeContext | undefined): boolean {
   return !!c && c.ct !== 'verified_crawler' && c.ct !== 'verified_agent' && (c.fl || c.trap >= 2 || c.risk >= 70);
 }
+
+/** SHIELD: decoy and trap verdicts — the reserved test identity Edge's simulated hits use (TEST-NET-1): never blocked. */
+export const SIMULATED_CLIENT = '192.0.2.1';
+
+/**
+ * SHIELD: decoy and trap verdicts (edge-deception-spec "What each layer does") —
+ * the signed verdict a decoy or trap hit sends Edge, for a request Edge's
+ * verified context names. Null without a context, for a verified crawler or
+ * agent, a red team run (`rt`) or the simulated client, or when nothing signs.
+ * Never throws.
+ */
+export function hitVerdict(keys: EdgeKey[], edge: Pick<EdgeContext, 'rid' | 'ct'> & { rt?: string } | null | undefined, ip: string | undefined, act: 'block' | 'flag', cat: string, src: EdgeVerdict['src'], ttl: number, nowMs = Date.now()): string | null {
+  try {
+    if (!edge || !keys.length || edge.ct === 'verified_crawler' || edge.ct === 'verified_agent' || typeof edge.rt === 'string') return null;
+    const a = ip?.startsWith('::ffff:') ? ip.slice(7) : ip;
+    if (a === SIMULATED_CLIENT) return null;
+    return signVerdict(keys, { rid: edge.rid, iat: Math.floor(nowMs / 1000), act, cat, src, ttl });
+  } catch {
+    return null;
+  }
+}

@@ -1069,6 +1069,56 @@
       "expect": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfMDEyMzQ1Njc4OSIsImlhdCI6MTgwMDAwMDAwMCwiYWN0IjoiZmxhZyIsImNhdCI6InRyYXAiLCJzcmMiOiJkZWZlbmQiLCJ0dGwiOjkwMH0.yFfk42vfUQJB_j4q7YAFSJrwqAQUcWrunYiRa9G3X8c"
     },
     {
+      "name": "block from an app decoy hit",
+      "rid": "req_decoy_00001",
+      "act": "block",
+      "cat": "deception",
+      "src": "rasp",
+      "ttl": 3600,
+      "iat": 1800000000,
+      "expect": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfZGVjb3lfMDAwMDEiLCJpYXQiOjE4MDAwMDAwMDAsImFjdCI6ImJsb2NrIiwiY2F0IjoiZGVjZXB0aW9uIiwic3JjIjoicmFzcCIsInR0bCI6MzYwMH0.p1sPFsnLCLray3Yl3F_J4ByuYkAGDyVEow9Pm5kr7z0"
+    },
+    {
+      "name": "block from an app decoy hit, the deception TTL",
+      "rid": "req_decoy_00002",
+      "act": "block",
+      "cat": "deception",
+      "src": "rasp",
+      "ttl": 900,
+      "iat": 1800000000,
+      "expect": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfZGVjb3lfMDAwMDIiLCJpYXQiOjE4MDAwMDAwMDAsImFjdCI6ImJsb2NrIiwiY2F0IjoiZGVjZXB0aW9uIiwic3JjIjoicmFzcCIsInR0bCI6OTAwfQ.FOTxI_kYydRM8ICdXLjAEhwvcOXHuFY3AxceiShuYR8"
+    },
+    {
+      "name": "flag from an app decoy hit in monitor",
+      "rid": "req_decoy_00003",
+      "act": "flag",
+      "cat": "deception",
+      "src": "rasp",
+      "ttl": 900,
+      "iat": 1800000000,
+      "expect": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfZGVjb3lfMDAwMDMiLCJpYXQiOjE4MDAwMDAwMDAsImFjdCI6ImZsYWciLCJjYXQiOiJkZWNlcHRpb24iLCJzcmMiOiJyYXNwIiwidHRsIjo5MDB9.0fFp4KbPw4pt2PCa8616oytwPVjgw6u2D7_-Nt5DxhU"
+    },
+    {
+      "name": "block from a Defend trap hit",
+      "rid": "req_trap_000001",
+      "act": "block",
+      "cat": "trap",
+      "src": "defend",
+      "ttl": 3600,
+      "iat": 1800000000,
+      "expect": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfdHJhcF8wMDAwMDEiLCJpYXQiOjE4MDAwMDAwMDAsImFjdCI6ImJsb2NrIiwiY2F0IjoidHJhcCIsInNyYyI6ImRlZmVuZCIsInR0bCI6MzYwMH0.RapmWLdfwiYFDdnffI_e1rUb0A4QbswfLfHBflguEh4"
+    },
+    {
+      "name": "flag from a Defend trap hit in monitor",
+      "rid": "req_trap_000002",
+      "act": "flag",
+      "cat": "trap",
+      "src": "defend",
+      "ttl": 3600,
+      "iat": 1800000000,
+      "expect": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfdHJhcF8wMDAwMDIiLCJpYXQiOjE4MDAwMDAwMDAsImFjdCI6ImZsYWciLCJjYXQiOiJ0cmFwIiwic3JjIjoiZGVmZW5kIiwidHRsIjozNjAwfQ.s2tggokB8Ck1gLXq4AYmMsFdu_f0gZ2AMxaE0LRy_oQ"
+    },
+    {
       "name": "ttl 0",
       "rid": "req_abcdefgh",
       "act": "block",

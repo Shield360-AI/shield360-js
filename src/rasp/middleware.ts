@@ -12,6 +12,7 @@ import { bodyAbsent, captureBody, captureLater, captureNoBody, captureRequest, l
 import { currentContext, eventRouteOf, storage, type RaspContext } from './context';
 import { checkDeception, type DeceptionOutcome, type DeceptionRequest } from './deception';
 import { isActive } from './engine';
+import { CONTEXT_HEADER, REQUEST_ID_HEADER, VERDICT_HEADER } from './edge-context';
 import { blockAnswer, RaspBlockedError } from './types';
 // SHIELD: AI attack agents — the before-handler check, the status watch and the deter answer (agents.ts).
 import { agentsAfter, agentsBefore, inheritAgents, watchStatus } from './agents';
@@ -69,6 +70,29 @@ const ipOf = (own: unknown, req?: { socket?: { remoteAddress?: unknown } }): str
 
 /** SHIELD: AI attack agents — what the before-handler check needs from an adapter. */
 type AgentsHook = { headers: Record<string, string | string[] | undefined>; res?: ServerResponse; route?: () => string | undefined };
+
+/** SHIELD: decoy and trap verdicts — puts a decoy hit's verdict on the response while its headers are open (else the event alone). */
+export function setDecoyVerdict(res: { headersSent?: boolean; setHeader?: (name: string, value: string) => unknown } | undefined, d: DeceptionOutcome): void {
+  try {
+    if (d.verdict && res && !res.headersSent && typeof res.setHeader === 'function') res.setHeader(VERDICT_HEADER, d.verdict);
+  } catch {
+    // the response is already gone
+  }
+}
+
+/** SHIELD: decoy and trap verdicts — the fetch Request's Edge headers, the only ones deception reads for a verdict. */
+function edgeHeadersOf(h: Headers): Record<string, string> {
+  const out: Record<string, string> = {};
+  try {
+    for (const name of [CONTEXT_HEADER, REQUEST_ID_HEADER]) {
+      const v = h.get(name);
+      if (v) out[name] = v;
+    }
+  } catch {
+    // no headers
+  }
+  return out;
+}
 
 /** Deception, unless the zero-code capture already ran it for this request (it answers decoys itself). */
 function deceive(r: DeceptionRequest): DeceptionOutcome {
@@ -266,6 +290,7 @@ export function raspExpress(options: RaspExpressOptions = {}) {
     // The full target the client sent (`originalUrl`: a router mount does not strip it).
     const d = deceive({ framework: 'express', method: req.method || 'GET', url: req.originalUrl || req.url || '/', ip: ipOf(req.ip, req), headers: req.headers });
     if (d.notFound) {
+      setDecoyVerdict(res, d);
       if (d.page) return sendTripwirePage(req, res, d.page);
       try {
         if (options.notFound) return options.notFound(req, res);
@@ -331,7 +356,7 @@ type FastifyRequest = {
   is404?: boolean;
   [k: symbol]: unknown;
 };
-type FastifyReply = { code(n: number): FastifyReply; header(k: string, v: string): FastifyReply; send(body: unknown): unknown; callNotFound?(): unknown };
+type FastifyReply = { code(n: number): FastifyReply; header(k: string, v: string): FastifyReply; send(body: unknown): unknown; callNotFound?(): unknown; sent?: boolean };
 type FastifyLike = { server?: unknown; addHook(name: string, fn: (request: FastifyRequest, reply: FastifyReply, done: Next) => void): unknown };
 
 const FASTIFY_CTX = Symbol('shield360.rasp.context');
@@ -385,6 +410,13 @@ export function raspFastify(fastify: FastifyLike, _opts: unknown, done: Next): v
   fastify.addHook('onRequest', (request, reply, next) => {
     if (!isActive()) return next();
     const d = deceive({ framework: 'fastify', method: request.method, url: request.url, ip: ipOf(request.ip), headers: request.headers });
+    if (d.notFound && d.verdict) {
+      try {
+        if (!reply.sent) reply.header(VERDICT_HEADER, d.verdict);
+      } catch {
+        // the reply is already gone
+      }
+    }
     if (d.notFound && d.page) {
       try {
         reply.code(404).header('Content-Type', 'text/html; charset=utf-8').header('Cache-Control', 'no-store').send(d.page);
@@ -442,6 +474,7 @@ export function raspFastify(fastify: FastifyLike, _opts: unknown, done: Next): v
 
 type KoaContext = {
   method: string;
+  headerSent?: boolean;
   url: string;
   originalUrl?: string;
   headers?: Record<string, string | string[] | undefined>;
@@ -476,6 +509,13 @@ export function raspKoa() {
     }
     markFrameworkServer(socketServer(k.req as { socket?: unknown } | undefined));
     const d = deceive({ framework: 'koa', method: k.method, url: k.originalUrl || k.url || '/', ip: ipOf(k.ip), headers: k.headers ?? k.request?.headers });
+    if (d.notFound && d.verdict) {
+      try {
+        if (!k.headerSent) k.set?.(VERDICT_HEADER, d.verdict);
+      } catch {
+        // headers are best effort
+      }
+    }
     if (d.notFound && d.page) {
       k.status = 404;
       try {
@@ -539,6 +579,7 @@ export function raspHttp<H extends HttpHandler>(handler: H): H {
   const wrapped = function (this: unknown, req: IncomingMessage, res: ServerResponse): unknown {
     if (!isActive()) return handler.call(this, req, res);
     const d = deceive({ framework: 'http', method: req.method || 'GET', url: req.url || '/', ip: ipOf(undefined, req), headers: req.headers });
+    if (d.notFound) setDecoyVerdict(res, d);
     if (d.notFound) return d.page ? sendTripwirePage(req, res, d.page) : sendNotFound(res);
     if (d.blocked) return sendBlocked(res, d.blocked);
     const withBody = req as IncomingMessage & { body?: unknown };
@@ -667,9 +708,11 @@ export function withRasp<C = unknown>(handler: RouteHandler<C>): RouteHandler<C>
       return handler(request, context);
     }
     // Next.js gives only the parsed URL (dot segments already resolved) and no client address, so a hit marks nothing.
-    const d = deceive({ framework: 'nextjs', method: request.method, url: url.pathname + url.search });
+    // SHIELD: decoy and trap verdicts — the headers carry Edge's context (lower-case names, as Node's).
+    const d = deceive({ framework: 'nextjs', method: request.method, url: url.pathname + url.search, headers: edgeHeadersOf(request.headers) });
     // What `notFound()` gives in a route handler: an empty 404.
-    if (d.notFound) return d.page ? new Response(d.page, { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } }) : new Response(null, { status: 404 });
+    const vh: Record<string, string> = d.verdict ? { [VERDICT_HEADER]: d.verdict } : {};
+    if (d.notFound) return d.page ? new Response(d.page, { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', ...vh } }) : new Response(null, { status: 404, headers: vh });
     if (d.blocked) return blockedResponse(d.blocked);
     let ctx: RaspContext | undefined;
     const pending: [string, string][] = [];

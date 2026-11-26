@@ -10,7 +10,8 @@
  * capture, and it fails open: any error lets the request through.
  */
 import { eventRouteOf } from './context';
-import { deceptionConfig, deceptionMode, reportDeception } from './engine';
+import { deceptionConfig, deceptionMode, remoteConfig, reportDeception } from './engine';
+import { CONTEXT_HEADER, REQUEST_ID_HEADER, hitVerdict, verifyEdgeContext } from './edge-context';
 import { RaspBlockedError } from './types';
 // SHIELD: AI attack agents — the tripwire, decoy scoring and the tripwire page (agents.ts).
 import { agentsDecoy, checkTripwire } from './agents';
@@ -177,8 +178,29 @@ export function setSuspiciousTable(t: SuspiciousTable): void {
 /** A request as deception sees it: the raw target (path and query as received) and the client address `request.ip` uses. */
 export type DeceptionRequest = { framework: string; method: string; url: string; ip?: string; headers?: HeaderMap };
 
-/** What the adapter does: go on, answer its not-found, or answer the block response. */
-export type DeceptionOutcome = { notFound?: true; blocked?: RaspBlockedError; page?: string };
+/** What the adapter does: go on, answer its not-found, or answer the block response. `verdict`: the signed X-Shield360-Verdict the 404 carries, while its headers are open. */
+export type DeceptionOutcome = { notFound?: true; blocked?: RaspBlockedError; page?: string; verdict?: string };
+
+/**
+ * SHIELD: decoy and trap verdicts (README "Deception", "Protection triangle") —
+ * the verdict a decoy hit sends Edge: block when the decision is blocked, else
+ * flag, for `ttlSeconds`. Edge's context is verified without a replay cache
+ * (the request never reaches the app). Undefined without one. Never throws.
+ */
+export function decoyVerdict(r: DeceptionRequest, block: boolean, ttlSeconds: number): string | undefined {
+  try {
+    const raw = r.headers?.[CONTEXT_HEADER];
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    const keys = remoteConfig()?.edgeKeys ?? [];
+    if (!value || !keys.length) return undefined;
+    const q = r.url.indexOf('?');
+    const rid = r.headers?.[REQUEST_ID_HEADER];
+    const edge = verifyEdgeContext(keys, value, { method: r.method, path: q >= 0 ? r.url.slice(0, q) : r.url, requestId: typeof rid === 'string' ? rid : undefined }, Date.now(), null);
+    return hitVerdict(keys, edge, r.ip, block ? 'block' : 'flag', 'deception', 'rasp', ttlSeconds) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 const PASS: DeceptionOutcome = {};
 
@@ -204,7 +226,8 @@ export function checkDeception(r: DeceptionRequest): DeceptionOutcome {
       reportDeception(HIT_RULE, block, { ...extra, route: decoy });
       // SHIELD: AI attack agents — a decoy hit adds to the behavior score; the 404 may carry the tripwire page.
       const page = agentsDecoy(r);
-      return page ? { notFound: true, page } : { notFound: true };
+      const verdict = decoyVerdict(r, block, cfg.ttlSeconds);
+      return { notFound: true, ...(page ? { page } : {}), ...(verdict ? { verdict } : {}) };
     }
     if (!r.ip || !table.isMarked(r.ip)) return PASS;
     const q = r.url.indexOf('?');

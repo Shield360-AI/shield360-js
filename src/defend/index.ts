@@ -22,7 +22,7 @@ import { Honeypots, type HoneypotHit } from '../defend-traps/honeypots';
 import { DEFEND_JWS_TYPE, DEFEND_POLICY_PATH, parseDefendPolicy } from './policy';
 import { carriesAgentProof, factsOf } from './request';
 import { BreadthCounter, classifyClient } from '../client-type';
-import { CONTEXT_HEADER, REQUEST_ID_HEADER, verifyEdgeContext } from '../rasp/edge-context';
+import { CONTEXT_HEADER, REQUEST_ID_HEADER, VERDICT_HEADER, hitVerdict, verifyEdgeContext } from '../rasp/edge-context';
 import { DefendReporter } from './reporter';
 import type { ClientClassification, DefendCallOptions, DefendFacts, DefendMode, DefendOptions, DefendPolicy, DefendResult } from './types';
 
@@ -105,8 +105,18 @@ function statusOf(result: DefendResult): number {
   return result.decision === 'require_sign_in' ? 401 : 403;
 }
 
+/** SHIELD: decoy and trap verdicts — a trap hit's verdict on the response, while its headers are open (else the event alone). */
+function setVerdict(res: ServerResponse, result: DefendResult): void {
+  try {
+    if (result.verdict && !res.headersSent) res.setHeader(VERDICT_HEADER, result.verdict);
+  } catch {
+    // the response is already gone
+  }
+}
+
 function answerNode(res: ServerResponse, result: DefendResult): void {
   if (res.headersSent) return;
+  setVerdict(res, result);
   if (result.decoy && result.decision === 'allow') {
     res.statusCode = result.decoy.status;
     res.setHeader('Content-Type', result.decoy.contentType);
@@ -122,8 +132,9 @@ function answerNode(res: ServerResponse, result: DefendResult): void {
 }
 
 function answerFetch(result: DefendResult): Response {
-  if (result.decoy && result.decision === 'allow') return new Response(result.decoy.body, { status: result.decoy.status, headers: { 'Content-Type': result.decoy.contentType, 'Cache-Control': 'no-store' } });
-  return new Response(BLOCK_BODY, { status: statusOf(result), headers: { 'Content-Type': 'application/json', 'Shield360-Defend': result.decision, 'Cache-Control': 'no-store' } });
+  const vh: Record<string, string> = result.verdict ? { [VERDICT_HEADER]: result.verdict } : {};
+  if (result.decoy && result.decision === 'allow') return new Response(result.decoy.body, { status: result.decoy.status, headers: { 'Content-Type': result.decoy.contentType, 'Cache-Control': 'no-store', ...vh } });
+  return new Response(BLOCK_BODY, { status: statusOf(result), headers: { 'Content-Type': 'application/json', 'Shield360-Defend': result.decision, 'Cache-Control': 'no-store', ...vh } });
 }
 
 export function createDefend(options: DefendOptions): Defend {
@@ -287,10 +298,20 @@ export function createDefend(options: DefendOptions): Defend {
     if (action !== 'monitor') marks.mark(ip, ttl);
     const reasons = ['trap:honeypot', `level:${hit.level}`, `crumb:${hit.state}`, ...(hit.foreign ? ['crumb:foreign'] : []), `decoy:${hit.decoy.replace(/[^a-z0-9_.:-]/g, '').slice(0, 40) || 'path'}`];
     reporter?.add({ kind: 'trap_hit', ip, path: facts.path.slice(0, 256), method: facts.method, clientType: 'suspected_ai_agent', reasons, ruleIds: [] });
+    // SHIELD: decoy and trap verdicts — Edge blocks the client fleet-wide when this hit blocks, else marks it.
+    const v = trapVerdict(facts, action === 'block' && m() !== 'monitor', ttl);
+    const vf = v ? { verdict: v } : {};
     // A decoy keeps answering with fake data (the client learns nothing); a fake credential on a real route is refused now when the mode blocks.
-    if (decoy) return { ...result, decoy, reasons: [...result.reasons, ...reasons], clientType: 'suspected_ai_agent' };
-    if (action === 'monitor' || m() === 'monitor') return { ...result, reasons: [...result.reasons, ...reasons], clientType: 'suspected_ai_agent', ...(action !== 'monitor' ? { wouldBe: action === 'block' ? 'deny' : 'challenge' } : {}) };
-    return { decision: action === 'block' ? 'deny' : 'challenge', reasons: [...result.reasons, ...reasons], ruleIds: result.ruleIds, ttl, clientType: 'suspected_ai_agent' };
+    if (decoy) return { ...result, decoy, reasons: [...result.reasons, ...reasons], clientType: 'suspected_ai_agent', ...vf };
+    if (action === 'monitor' || m() === 'monitor') return { ...result, reasons: [...result.reasons, ...reasons], clientType: 'suspected_ai_agent', ...(action !== 'monitor' ? { wouldBe: action === 'block' ? 'deny' : 'challenge' } : {}), ...vf };
+    return { decision: action === 'block' ? 'deny' : 'challenge', reasons: [...result.reasons, ...reasons], ruleIds: result.ruleIds, ttl, clientType: 'suspected_ai_agent', ...vf };
+  }
+
+  /** SHIELD: decoy and trap verdicts — the trap hit's signed verdict (cat trap, src defend), with a verified context only. */
+  function trapVerdict(facts: DefendFacts, block: boolean, ttl: number): string | undefined {
+    const e = facts.edge;
+    if (!e?.rid) return undefined;
+    return hitVerdict(current?.edgeKeys ?? [], { rid: e.rid, ct: e.ct, ...(e.rt ? { rt: e.rt } : {}) }, facts.ip, block ? 'block' : 'flag', 'trap', 'defend', ttl, now()) ?? undefined;
   }
   const m = () => mode();
 
@@ -320,7 +341,7 @@ export function createDefend(options: DefendOptions): Defend {
       const ctxValue = facts.headers[CONTEXT_HEADER];
       if (ctxValue && policy?.edgeKeys.length) {
         const edge = verifyEdgeContext(policy.edgeKeys, ctxValue, { method: facts.method, path: facts.rawPath ?? facts.path, requestId: facts.headers[REQUEST_ID_HEADER] || undefined, scope: edgeScope(request) }, now());
-        if (edge) facts.edge = { ct: edge.ct, trap: edge.trap, fl: edge.fl, risk: edge.risk };
+        if (edge) facts.edge = { ct: edge.ct, trap: edge.trap, fl: edge.fl, risk: edge.risk, rid: edge.rid, ...(edge.rt ? { rt: edge.rt } : {}) };
       }
       // A client Edge's honeypots already caught following a trail (level 2+) is a trap hit here too: blocked at once.
       const edgeVerified = facts.edge?.ct === 'verified_agent' || facts.edge?.ct === 'verified_crawler';
@@ -366,6 +387,7 @@ export function createDefend(options: DefendOptions): Defend {
             req.shield360Defend = result;
             if (result.decision === 'allow' && !result.decoy) {
               if (result.crumbHeader && !res.headersSent) res.setHeader('X-Debug-Trace', result.crumbHeader);
+              setVerdict(res, result);
               return next();
             }
             if (o.onDecision?.(req, res, result)) return;
@@ -377,7 +399,13 @@ export function createDefend(options: DefendOptions): Defend {
     http<H extends (req: IncomingMessage, res: ServerResponse) => unknown>(handler: H): H {
       const wrapped = function (this: unknown, req: IncomingMessage, res: ServerResponse) {
         void defendOne(req).then(
-          (result) => (result.decision === 'allow' && !result.decoy ? handler.call(this, req, res) : answerNode(res, result)),
+          (result) => {
+            if (result.decision === 'allow' && !result.decoy) {
+              setVerdict(res, result);
+              return handler.call(this, req, res);
+            }
+            return answerNode(res, result);
+          },
           () => handler.call(this, req, res),
         );
       };

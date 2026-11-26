@@ -41,7 +41,7 @@ import { isActive } from './engine';
 import { checkDeception } from './deception';
 // SHIELD: AI attack agents — the before-handler check and the status watch (agents.ts).
 import { agentsBefore, watchStatus } from './agents';
-import { frameworkServes, sendBlocked, sendNotFound, sendTripwirePage } from './middleware';
+import { frameworkServes, sendBlocked, sendNotFound, sendTripwirePage, setDecoyVerdict } from './middleware';
 import { RaspBlockedError } from './types';
 
 const PATCHED = Symbol.for('shield360.rasp.autoHttp');
@@ -142,6 +142,7 @@ function wrap(original: Emit): Emit {
     if (plain) {
       const d = checkDeception({ framework: 'http', method: req.method || 'GET', url: req.url || '/', ip: peerOf(req), headers: req.headers });
       if (d.notFound) {
+        setDecoyVerdict(res, d);
         if (d.page) sendTripwirePage(req, res, d.page);
         else sendNotFound(res);
         return true;

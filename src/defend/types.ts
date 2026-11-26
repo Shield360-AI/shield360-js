@@ -34,6 +34,8 @@ export type DefendResult = {
   decoy?: { status: number; contentType: string; body: string };
   /** The crumb header value the middleware adds to an allowed response (honeypots on). */
   crumbHeader?: string;
+  /** SHIELD: decoy and trap verdicts — the signed X-Shield360-Verdict for a trap hit, which the middleware puts on the response while its headers are open. */
+  verdict?: string;
 };
 
 export type DefendMode = 'enforce' | 'monitor';
@@ -93,7 +95,7 @@ export type DefendFacts = {
   /** The path as received (not decoded): what Edge's context header hashes. */
   rawPath?: string;
   /** Edge's verified context for this request (protection triangle), when Edge is in front. */
-  edge?: { ct: string; trap: number; fl: boolean; risk: number };
+  edge?: { ct: string; trap: number; fl: boolean; risk: number; rid?: string; rt?: string };
   ip?: string;
   country?: string;
   asn?: number;

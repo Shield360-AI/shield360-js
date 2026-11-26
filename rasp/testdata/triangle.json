@@ -1089,14 +1089,14 @@
       "expect": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfZGVjb3lfMDAwMDIiLCJpYXQiOjE4MDAwMDAwMDAsImFjdCI6ImJsb2NrIiwiY2F0IjoiZGVjZXB0aW9uIiwic3JjIjoicmFzcCIsInR0bCI6OTAwfQ.FOTxI_kYydRM8ICdXLjAEhwvcOXHuFY3AxceiShuYR8"
     },
     {
-      "name": "flag from an app decoy hit in monitor",
+      "name": "block from an app decoy hit in monitor",
       "rid": "req_decoy_00003",
-      "act": "flag",
+      "act": "block",
       "cat": "deception",
       "src": "rasp",
       "ttl": 900,
       "iat": 1800000000,
-      "expect": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfZGVjb3lfMDAwMDMiLCJpYXQiOjE4MDAwMDAwMDAsImFjdCI6ImZsYWciLCJjYXQiOiJkZWNlcHRpb24iLCJzcmMiOiJyYXNwIiwidHRsIjo5MDB9.0fFp4KbPw4pt2PCa8616oytwPVjgw6u2D7_-Nt5DxhU"
+      "expect": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfZGVjb3lfMDAwMDMiLCJpYXQiOjE4MDAwMDAwMDAsImFjdCI6ImJsb2NrIiwiY2F0IjoiZGVjZXB0aW9uIiwic3JjIjoicmFzcCIsInR0bCI6OTAwfQ.U6_HsCXNGWyMqJJL2zchHgDK5EPeoRfi_bnYoaj3qy8"
     },
     {
       "name": "block from a Defend trap hit",
@@ -1109,14 +1109,14 @@
       "expect": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfdHJhcF8wMDAwMDEiLCJpYXQiOjE4MDAwMDAwMDAsImFjdCI6ImJsb2NrIiwiY2F0IjoidHJhcCIsInNyYyI6ImRlZmVuZCIsInR0bCI6MzYwMH0.RapmWLdfwiYFDdnffI_e1rUb0A4QbswfLfHBflguEh4"
     },
     {
-      "name": "flag from a Defend trap hit in monitor",
+      "name": "block from a Defend trap hit in monitor",
       "rid": "req_trap_000002",
-      "act": "flag",
+      "act": "block",
       "cat": "trap",
       "src": "defend",
       "ttl": 3600,
       "iat": 1800000000,
-      "expect": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfdHJhcF8wMDAwMDIiLCJpYXQiOjE4MDAwMDAwMDAsImFjdCI6ImZsYWciLCJjYXQiOiJ0cmFwIiwic3JjIjoiZGVmZW5kIiwidHRsIjozNjAwfQ.s2tggokB8Ck1gLXq4AYmMsFdu_f0gZ2AMxaE0LRy_oQ"
+      "expect": "v1.0a1b2c3d.eyJyaWQiOiJyZXFfdHJhcF8wMDAwMDIiLCJpYXQiOjE4MDAwMDAwMDAsImFjdCI6ImJsb2NrIiwiY2F0IjoidHJhcCIsInNyYyI6ImRlZmVuZCIsInR0bCI6MzYwMH0.RlQP9JBC4dVth3mHluKe8-kUuW6CoHvD9kq2uQB5Vu0"
     },
     {
       "name": "ttl 0",

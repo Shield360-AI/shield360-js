@@ -55,10 +55,13 @@ describe('decoy hit -> verdict', () => {
     expect(events[0].attrs['shield360.rasp.rule']).toBe('deception.hit');
   });
 
-  it('a monitored hit flags; no context, a forged one, a verified crawler, a red team run or the simulated client send nothing', () => {
+  it('a monitored hit still blocks at Edge (the app still answers its 404); no context, a forged one, a verified crawler, a red team run or the simulated client send nothing', () => {
     setup('monitor');
     const c = ctx('/wp-admin');
-    expect(verifyVerdict(KEYS, hit('/wp-admin', '203.0.113.8', c.headers).verdict!, c.rid)).toMatchObject({ act: 'flag', cat: 'deception' });
+    const mon = hit('/wp-admin', '203.0.113.8', c.headers);
+    expect(mon.notFound).toBe(true);
+    expect(mon.blocked).toBeUndefined();
+    expect(verifyVerdict(KEYS, mon.verdict!, c.rid)).toMatchObject({ act: 'block', cat: 'deception', src: 'rasp', ttl: 1200 });
     setup('block');
     expect(hit('/wp-admin', '203.0.113.9', {}).verdict).toBeUndefined();
     const forged = ctx('/wp-admin');

@@ -55,14 +55,24 @@ describe('Defend trap verdicts', () => {
     await shield.close();
   });
 
-  it('flags instead in monitor mode, and sends nothing without Edge, for a verified crawler, a red team run or the simulated client', async () => {
+  it('still blocks at Edge in monitor mode and with honeypots in monitor, and sends nothing without Edge, for a verified crawler, a red team run or the simulated client', async () => {
     const quiet = make('block', { SHIELD360_DEFEND: 'monitor' });
     await quiet.ready();
     const qp = quiet.crumbs({ method: 'GET', url: '/', ip: '203.0.113.42', headers: { 'user-agent': 'agent/1' } })!.path;
     const qc = ctx(qp);
-    const flagged = await quiet.defend({ method: 'GET', url: qp, ip: '203.0.113.42', headers: qc.headers });
-    expect(verifyVerdict(KEYS, flagged.verdict!, qc.rid)).toMatchObject({ act: 'flag', cat: 'trap', src: 'defend' });
+    const monitored = await quiet.defend({ method: 'GET', url: qp, ip: '203.0.113.42', headers: qc.headers });
+    expect(monitored.decision).not.toBe('deny');
+    expect(verifyVerdict(KEYS, monitored.verdict!, qc.rid)).toMatchObject({ act: 'block', cat: 'trap', src: 'defend', ttl: 1800 });
     await quiet.close();
+
+    const watch = make('monitor');
+    await watch.ready();
+    const wp = watch.crumbs({ method: 'GET', url: '/', ip: '203.0.113.46', headers: { 'user-agent': 'agent/1' } })!.path;
+    const wc = ctx(wp);
+    const watched = await watch.defend({ method: 'GET', url: wp, ip: '203.0.113.46', headers: wc.headers });
+    expect(watched.decision).not.toBe('deny');
+    expect(verifyVerdict(KEYS, watched.verdict!, wc.rid)).toMatchObject({ act: 'block', cat: 'trap', src: 'defend' });
+    await watch.close();
 
     const shield = make('block');
     await shield.ready();

@@ -298,8 +298,8 @@ export function createDefend(options: DefendOptions): Defend {
     if (action !== 'monitor') marks.mark(ip, ttl);
     const reasons = ['trap:honeypot', `level:${hit.level}`, `crumb:${hit.state}`, ...(hit.foreign ? ['crumb:foreign'] : []), `decoy:${hit.decoy.replace(/[^a-z0-9_.:-]/g, '').slice(0, 40) || 'path'}`];
     reporter?.add({ kind: 'trap_hit', ip, path: facts.path.slice(0, 256), method: facts.method, clientType: 'suspected_ai_agent', reasons, ruleIds: [] });
-    // SHIELD: decoy and trap verdicts — Edge blocks the client fleet-wide when this hit blocks, else marks it.
-    const v = trapVerdict(facts, action === 'block' && m() !== 'monitor', ttl);
+    // SHIELD: decoy and trap verdicts — a trap hit always blocks the client fleet-wide at Edge, whatever the local action or mode.
+    const v = trapVerdict(facts, ttl);
     const vf = v ? { verdict: v } : {};
     // A decoy keeps answering with fake data (the client learns nothing); a fake credential on a real route is refused now when the mode blocks.
     if (decoy) return { ...result, decoy, reasons: [...result.reasons, ...reasons], clientType: 'suspected_ai_agent', ...vf };
@@ -307,11 +307,11 @@ export function createDefend(options: DefendOptions): Defend {
     return { decision: action === 'block' ? 'deny' : 'challenge', reasons: [...result.reasons, ...reasons], ruleIds: result.ruleIds, ttl, clientType: 'suspected_ai_agent', ...vf };
   }
 
-  /** SHIELD: decoy and trap verdicts — the trap hit's signed verdict (cat trap, src defend), with a verified context only. */
-  function trapVerdict(facts: DefendFacts, block: boolean, ttl: number): string | undefined {
+  /** SHIELD: decoy and trap verdicts — the trap hit's signed block verdict (cat trap, src defend), with a verified context only. */
+  function trapVerdict(facts: DefendFacts, ttl: number): string | undefined {
     const e = facts.edge;
     if (!e?.rid) return undefined;
-    return hitVerdict(current?.edgeKeys ?? [], { rid: e.rid, ct: e.ct, ...(e.rt ? { rt: e.rt } : {}) }, facts.ip, block ? 'block' : 'flag', 'trap', 'defend', ttl, now()) ?? undefined;
+    return hitVerdict(current?.edgeKeys ?? [], { rid: e.rid, ct: e.ct, ...(e.rt ? { rt: e.rt } : {}) }, facts.ip, 'block', 'trap', 'defend', ttl, now()) ?? undefined;
   }
   const m = () => mode();
 

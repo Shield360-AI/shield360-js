@@ -165,12 +165,13 @@ def verdict(name: str, rid: str, act: str, cat: str, src: str, ttl: int, iat: in
 
 verdict("the spec vector", "req_0123456789", "block", "sql_injection", "rasp", 600)
 verdict("flag from Defend", "req_0123456789", "flag", "trap", "defend", 900)
-# README "Deception" / edge-deception-spec "What each layer does": a verified decoy or trap hit in the app.
+# README "Deception" / edge-deception-spec "What each layer does": a verified decoy or trap hit in the app
+# always blocks at Edge, whatever the app's own action (monitor included).
 verdict("block from an app decoy hit", "req_decoy_00001", "block", "deception", "rasp", 3600)
 verdict("block from an app decoy hit, the deception TTL", "req_decoy_00002", "block", "deception", "rasp", 900)
-verdict("flag from an app decoy hit in monitor", "req_decoy_00003", "flag", "deception", "rasp", 900)
+verdict("block from an app decoy hit in monitor", "req_decoy_00003", "block", "deception", "rasp", 900)
 verdict("block from a Defend trap hit", "req_trap_000001", "block", "trap", "defend", 3600)
-verdict("flag from a Defend trap hit in monitor", "req_trap_000002", "flag", "trap", "defend", 3600)
+verdict("block from a Defend trap hit in monitor", "req_trap_000002", "block", "trap", "defend", 3600)
 verdict("ttl 0", "req_abcdefgh", "block", "command_injection", "sdk", 0)
 verdict("ttl 86400", "req_abcdefgh", "block", "path_traversal", "rasp", 86400)
 verdict("ttl over 86400", "req_abcdefgh", "block", "sql_injection", "rasp", 86401)

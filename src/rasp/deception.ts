@@ -183,11 +183,12 @@ export type DeceptionOutcome = { notFound?: true; blocked?: RaspBlockedError; pa
 
 /**
  * SHIELD: decoy and trap verdicts (README "Deception", "Protection triangle") —
- * the verdict a decoy hit sends Edge: block when the decision is blocked, else
- * flag, for `ttlSeconds`. Edge's context is verified without a replay cache
+ * the verdict a decoy hit sends Edge: always block (a decoy has no legitimate
+ * visitor), whatever the app's own action, for `ttlSeconds`; the app's answer
+ * to the request itself is unchanged. Edge's context is verified without a replay cache
  * (the request never reaches the app). Undefined without one. Never throws.
  */
-export function decoyVerdict(r: DeceptionRequest, block: boolean, ttlSeconds: number): string | undefined {
+export function decoyVerdict(r: DeceptionRequest, ttlSeconds: number): string | undefined {
   try {
     const raw = r.headers?.[CONTEXT_HEADER];
     const value = Array.isArray(raw) ? raw[0] : raw;
@@ -196,7 +197,7 @@ export function decoyVerdict(r: DeceptionRequest, block: boolean, ttlSeconds: nu
     const q = r.url.indexOf('?');
     const rid = r.headers?.[REQUEST_ID_HEADER];
     const edge = verifyEdgeContext(keys, value, { method: r.method, path: q >= 0 ? r.url.slice(0, q) : r.url, requestId: typeof rid === 'string' ? rid : undefined }, Date.now(), null);
-    return hitVerdict(keys, edge, r.ip, block ? 'block' : 'flag', 'deception', 'rasp', ttlSeconds) ?? undefined;
+    return hitVerdict(keys, edge, r.ip, 'block', 'deception', 'rasp', ttlSeconds) ?? undefined;
   } catch {
     return undefined;
   }
@@ -226,7 +227,7 @@ export function checkDeception(r: DeceptionRequest): DeceptionOutcome {
       reportDeception(HIT_RULE, block, { ...extra, route: decoy });
       // SHIELD: AI attack agents — a decoy hit adds to the behavior score; the 404 may carry the tripwire page.
       const page = agentsDecoy(r);
-      const verdict = decoyVerdict(r, block, cfg.ttlSeconds);
+      const verdict = decoyVerdict(r, cfg.ttlSeconds);
       return { notFound: true, ...(page ? { page } : {}), ...(verdict ? { verdict } : {}) };
     }
     if (!r.ip || !table.isMarked(r.ip)) return PASS;

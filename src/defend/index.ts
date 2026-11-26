@@ -294,6 +294,12 @@ export function createDefend(options: DefendOptions): Defend {
   }
   const m = () => mode();
 
+  // The request's own headers object, which RASP verifies Edge's context against too (verified once per request).
+  const edgeScope = (request: unknown): object | undefined => {
+    const h = request && typeof request === 'object' ? (request as { headers?: unknown }).headers : undefined;
+    return h && typeof h === 'object' ? h : undefined;
+  };
+
   async function defendOne(request: unknown, call: DefendCallOptions = {}): Promise<DefendResult> {
     const m = mode();
     if (m === 'off') return { decision: 'allow', reasons: ['off'], ruleIds: [], ttl: 0 };
@@ -313,7 +319,7 @@ export function createDefend(options: DefendOptions): Defend {
       // Protection triangle: what Edge, in front, says about this client (verified, never trusted unverified).
       const ctxValue = facts.headers[CONTEXT_HEADER];
       if (ctxValue && policy?.edgeKeys.length) {
-        const edge = verifyEdgeContext(policy.edgeKeys, ctxValue, { method: facts.method, path: facts.rawPath ?? facts.path, requestId: facts.headers[REQUEST_ID_HEADER] || undefined }, now());
+        const edge = verifyEdgeContext(policy.edgeKeys, ctxValue, { method: facts.method, path: facts.rawPath ?? facts.path, requestId: facts.headers[REQUEST_ID_HEADER] || undefined, scope: edgeScope(request) }, now());
         if (edge) facts.edge = { ct: edge.ct, trap: edge.trap, fl: edge.fl, risk: edge.risk };
       }
       // A client Edge's honeypots already caught following a trail (level 2+) is a trap hit here too: blocked at once.

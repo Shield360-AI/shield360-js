@@ -47,6 +47,23 @@ describe('context header', () => {
     expect(verifyEdgeContext(keys, contextHeader(), req, NOW, cache)).toBeNull(); // replay
   });
 
+  it('verifies once per request: a second layer on the same request gets the same context, another request is a replay', () => {
+    const cache = new ReplayCache();
+    const scope = {};
+    const first = verifyEdgeContext(keys, contextHeader(), { ...req, scope }, NOW, cache);
+    expect(first).toMatchObject({ rid: 'req_0123456789', trap: 2 });
+    // RASP and Defend (or the zero-code capture and a framework middleware) both verify the same request.
+    expect(verifyEdgeContext(keys, contextHeader(), { ...req, scope }, NOW, cache)).toEqual(first);
+    // The same header lifted onto another request is still refused.
+    expect(verifyEdgeContext(keys, contextHeader(), { ...req, scope: {} }, NOW, cache)).toBeNull();
+    expect(verifyEdgeContext(keys, contextHeader(), req, NOW, cache)).toBeNull();
+    // The shared result is still bound to the request it verified for.
+    expect(verifyEdgeContext(keys, contextHeader(), { ...req, path: '/api/admin', scope }, NOW, cache)).toBeNull();
+    expect(verifyEdgeContext(keys, contextHeader(), { ...req, requestId: 'req_someone_else', scope }, NOW, cache)).toBeNull();
+    expect(verifyEdgeContext(keys, contextHeader({ risk: 1 }), { ...req, scope }, NOW, cache)).toBeNull();
+    expect(verifyEdgeContext(keys, contextHeader(), { ...req, scope }, NOW + 60_000, cache)).toBeNull();
+  });
+
   it('reads keys from the signed config strictly', () => {
     expect(parseEdgeKeys({ keys: [{ kid: '0a1b2c3d', key: KEY.toString('base64url') }] })).toHaveLength(1);
     expect(parseEdgeKeys({ keys: [{ kid: 'bad', key: KEY.toString('base64url') }] })).toEqual([]);
@@ -110,6 +127,15 @@ describe('RASP with Edge in front', () => {
     } finally {
       await new Promise((r) => server.close(r));
     }
+  });
+
+  it("keeps Edge's context when the zero-code capture and a framework middleware both capture the request", () => {
+    const { rid, header } = live();
+    const headers = { 'x-shield360-edge-context': header, 'x-request-id': rid };
+    expect(captureRequest({ framework: 'http', method: 'POST', url: '/api/orders', headers }).edge).toMatchObject({ rid, trap: 2 });
+    expect(captureRequest({ framework: 'express', method: 'POST', url: '/api/orders', headers }).edge).toMatchObject({ rid, trap: 2 });
+    // Another request carrying the same header is a replay.
+    expect(captureRequest({ framework: 'express', method: 'POST', url: '/api/orders', headers: { ...headers } }).edge).toBeUndefined();
   });
 
   it('raw http: a request a virtual patch blocks still carries the verdict', async () => {

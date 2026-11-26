@@ -38,6 +38,8 @@ export type RequestShape = {
   route?: string;
   /** The client address as the framework reports it (custom rules' `request.ip`). */
   ip?: string;
+  /** The request's own headers object, when `headers` is a copy: Edge's context is verified once per request (edge-context.ts). */
+  scope?: object;
 };
 
 /** What is known about the body. */
@@ -162,7 +164,7 @@ export function captureRequest(shape: RequestShape): RaspContext {
   const edgeValue = header(shape.headers, CONTEXT_HEADER);
   if (edgeValue) {
     const keys = remoteConfig()?.edgeKeys ?? [];
-    const edge = verifyEdgeContext(keys, edgeValue, { method: shape.method, path, requestId: header(shape.headers, REQUEST_ID_HEADER) || undefined });
+    const edge = verifyEdgeContext(keys, edgeValue, { method: shape.method, path, requestId: header(shape.headers, REQUEST_ID_HEADER) || undefined, scope: shape.scope ?? shape.headers });
     if (edge) ctx.edge = edge;
   }
   // SHIELD: request correlation — Edge's request id and the trace for the app's log lines and server span (otel/edge-request.ts).

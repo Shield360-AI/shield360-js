@@ -686,7 +686,7 @@ export function withRasp<C = unknown>(handler: RouteHandler<C>): RouteHandler<C>
       } catch {
         params = undefined;
       }
-      ctx = captureRequest({ framework: 'nextjs', method: request.method, url: url.pathname + url.search, headers, params });
+      ctx = captureRequest({ framework: 'nextjs', method: request.method, url: url.pathname + url.search, headers, params, scope: request.headers });
       ctx.setHeader = (name, value) => {
         pending.push([name, value]);
       };

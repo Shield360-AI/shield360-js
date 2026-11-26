@@ -129,14 +129,30 @@ export class ReplayCache {
 
 const replay = new ReplayCache();
 
+// The context each request verified, by the request's own object (its headers):
+// RASP's capture, a framework middleware and Defend each verify the header of
+// the same request, and only the first may pass the replay cache.
+const verified = new WeakMap<object, { value: string; ctx: EdgeContext }>();
+
 /**
  * Verifies the context header for this request: method, path and Edge's
  * request id (X-Request-Id), which must be present and equal the signed rid.
- * Null when absent or not valid.
+ * `scope` is the request's own object (its headers object): every layer that
+ * verifies the same request gets the same context, while the header seen on
+ * any other request is a replay. Null when absent or not valid.
  */
-export function verifyEdgeContext(keys: EdgeKey[], value: unknown, req: { method: string; path: string; requestId?: string }, nowMs = Date.now(), cache: ReplayCache | null = replay): EdgeContext | null {
+export function verifyEdgeContext(keys: EdgeKey[], value: unknown, req: { method: string; path: string; requestId?: string; scope?: object }, nowMs = Date.now(), cache: ReplayCache | null = replay): EdgeContext | null {
   try {
     if (typeof value !== 'string' || !keys.length) return null;
+    const scope = req.scope && (typeof req.scope === 'object' || typeof req.scope === 'function') ? req.scope : undefined;
+    const prior = scope ? verified.get(scope) : undefined;
+    if (prior && prior.value === value) {
+      const c = prior.ctx;
+      const now = Math.floor(nowMs / 1000);
+      // Still bound to this request and fresh; a copy, so one layer cannot change another's.
+      if (c.m !== req.method || c.ph !== pathHash(req.path) || req.requestId !== c.rid || c.exp < now - SKEW_S || c.iat > now + SKEW_S) return null;
+      return { ...c, ...(c.waf ? { waf: [...c.waf] } : {}) };
+    }
     const c = open(keys, 's360-ctx|v1|', value, CONTEXT_KEYS) as Partial<EdgeContext> | null;
     if (!c) return null;
     const now = Math.floor(nowMs / 1000);
@@ -152,7 +168,9 @@ export function verifyEdgeContext(keys: EdgeKey[], value: unknown, req: { method
     if (c.dk !== undefined && (typeof c.dk !== 'string' || !DK.test(c.dk))) return null;
     if (c.dt !== undefined && (typeof c.dt !== 'string' || !TRUSTS.has(c.dt))) return null;
     if (cache && !cache.first(`c:${c.rid}`, (c.exp + SKEW_S) * 1000, nowMs)) return null;
-    return { rid: c.rid, iat: c.iat, exp: c.exp, m: c.m, ph: c.ph, ct: c.ct, risk: c.risk, trap: c.trap, fl: c.fl === true, ...(c.waf ? { waf: c.waf } : {}), ...(typeof c.tp === 'string' ? { tp: c.tp } : {}), ...(c.rt ? { rt: c.rt } : {}), ...(c.sid ? { sid: c.sid } : {}), ...(c.fp ? { fp: c.fp } : {}), ...(c.dk ? { dk: c.dk } : {}), ...(c.dt ? { dt: c.dt } : {}) };
+    const out: EdgeContext = { rid: c.rid, iat: c.iat, exp: c.exp, m: c.m, ph: c.ph, ct: c.ct, risk: c.risk, trap: c.trap, fl: c.fl === true, ...(c.waf ? { waf: c.waf } : {}), ...(typeof c.tp === 'string' ? { tp: c.tp } : {}), ...(c.rt ? { rt: c.rt } : {}), ...(c.sid ? { sid: c.sid } : {}), ...(c.fp ? { fp: c.fp } : {}), ...(c.dk ? { dk: c.dk } : {}), ...(c.dt ? { dt: c.dt } : {}) };
+    if (scope) verified.set(scope, { value, ctx: { ...out, ...(out.waf ? { waf: [...out.waf] } : {}) } });
+    return out;
   } catch {
     return null;
   }

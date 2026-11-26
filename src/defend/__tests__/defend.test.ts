@@ -1,5 +1,7 @@
 import { createHmac, generateKeyPairSync, sign } from 'crypto';
 import { pathHash } from '../../rasp/edge-context';
+import { captureRequest } from '../../rasp/capture';
+import { setRemoteConfig } from '../../rasp/engine';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -344,5 +346,24 @@ describe('client type and Edge context in Defend', () => {
     const otherId = await shield.defend({ method: 'GET', url: '/api/x', ip: '203.0.113.15', headers: { 'x-shield360-edge-context': ctxHeader({ ct: 'suspected_agent', trap: 2, fl: true }), 'x-request-id': 'req_another_one' } });
     expect(otherId.decision).toBe('allow');
     await shield.close();
+  });
+
+  it("still sees Edge's context when RASP verified it first on the same request, and refuses it on another", async () => {
+    const shield = make(claims());
+    await shield.ready();
+    setRemoteConfig({ version: 'v', exp: Math.floor(Date.now() / 1000) + 3600, killSwitch: false, snippets: false, attacks: {}, rules: null, edgeKeys: [{ kid: '0a1b2c3d', key: EDGE_KEY }] });
+    try {
+      const h = ctxHeader({ ct: 'suspected_agent', trap: 2, fl: true });
+      const request = { method: 'GET', url: '/api/x', ip: '203.0.113.16', headers: { 'x-shield360-edge-context': h, 'x-request-id': ctxRid(h) } };
+      // RASP's zero-code capture verifies the header before Defend's middleware runs.
+      expect(captureRequest({ framework: 'http', method: 'GET', url: '/api/x', headers: request.headers }).edge).toMatchObject({ trap: 2 });
+      expect(await shield.defend(request)).toMatchObject({ decision: 'deny', reasons: ['trap_hit'] });
+      // The same header replayed on another request is not trusted.
+      const replayed = await shield.defend({ ...request, ip: '203.0.113.17', headers: { ...request.headers } });
+      expect(replayed.decision).toBe('allow');
+    } finally {
+      setRemoteConfig(undefined);
+      await shield.close();
+    }
   });
 });
